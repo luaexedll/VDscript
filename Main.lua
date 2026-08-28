@@ -572,7 +572,7 @@ end)
 
 CreateToggle(tabMisc, "Full Bright (Ночное зрение)", "EnableFullBright", 4)
 CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5, function(state)
-    BoostFPS.Apply(state)
+    BoostFPS.Apply(state, Connections)
 end)
 CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
 
