@@ -4,9 +4,11 @@ local Lighting = game:GetService("Lighting")
 
 local function optimizePart(obj)
     if obj:IsA("BasePart") and not (obj.Parent and obj.Parent:FindFirstChild("Humanoid")) then
-        obj.Material = Enum.Material.SmoothPlastic
-        obj.CastShadow = false
-    elseif obj:IsA("Decal") or obj:IsA("Texture") then
+        if obj.Material ~= Enum.Material.SmoothPlastic or obj.CastShadow == true then
+            obj.Material = Enum.Material.SmoothPlastic
+            obj.CastShadow = false
+        end
+    elseif (obj:IsA("Decal") or obj:IsA("Texture")) and obj.Transparency ~= 1 then
         obj.Transparency = 1
     end
 end
@@ -21,18 +23,36 @@ function BoostFPS.Apply(state, connectionHolder)
             end
         end
         
-        -- Оптимизируем существующие объекты
+        -- Первичная оптимизация всего, что есть
         for _, obj in ipairs(workspace:GetDescendants()) do
             optimizePart(obj)
         end
         
-        -- Подписываемся на появление новых объектов (стриминг карты, новые зоны)
+        -- Слушатель новых объектов в реальном времени
         local conn = workspace.DescendantAdded:Connect(function(obj)
             optimizePart(obj)
         end)
         
         if connectionHolder then
             table.insert(connectionHolder, conn)
+        end
+        
+        -- Фоновый цикл: каждые 3 секунды проверяет пропущенные новые зоны и стриминг-районы
+        local loopTask = task.spawn(function()
+            while true do
+                task.wait(3)
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    optimizePart(obj)
+                end
+            end
+        end)
+        
+        if connectionHolder then
+            table.insert(connectionHolder, {
+                Disconnect = function()
+                    pcall(function() task.cancel(loopTask) end)
+                end
+            })
         end
     end
 end
