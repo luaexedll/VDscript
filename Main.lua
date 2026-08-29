@@ -854,7 +854,7 @@ table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
     Esp.CleanupPlayerCache(player)
 end))
 
--- Управление биндами меню и аима
+-- Управление биндами меню, аима и мунволка
 table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
     if Settings.IsBindingMenuKey then
         if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -874,18 +874,17 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
         return
     end
 
-    -- Отслеживание сброса бинда мунволка через Escape, если находимся в процессе переназначения
     if Settings.IsBindingMoonwalkKey then
-        if input.KeyCode == Enum.KeyCode.Escape then
-            Settings.IsBindingMoonwalkKey = false
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            if input.KeyCode == Enum.KeyCode.Escape then
+                Settings.IsBindingMoonwalkKey = false
+            else
+                Settings.MoonwalkKey = input.KeyCode
+                Settings.IsBindingMoonwalkKey = false
+            end
             updateMoonwalkBindText()
-            return
-        elseif input.UserInputType == Enum.UserInputType.Keyboard then
-            Settings.MoonwalkKey = input.KeyCode
-            Settings.IsBindingMoonwalkKey = false
-            updateMoonwalkBindText()
-            return
         end
+        return
     end
     
     if not gp and input.KeyCode == Settings.MenuKeyBind then
