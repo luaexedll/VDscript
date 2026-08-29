@@ -577,7 +577,7 @@ CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5
 end)
 CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
 
--- Moonwalk в одной полоске для вкладки Misc
+-- Добавление элементов Moonwalk на вкладку Misc
 local MoonwalkContainer = Instance.new("Frame")
 MoonwalkContainer.Size = UDim2.new(1, 0, 0, 36)
 MoonwalkContainer.BackgroundTransparency = 1
@@ -854,7 +854,7 @@ table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
     Esp.CleanupPlayerCache(player)
 end))
 
--- Управление биндами меню, аима и мунволка
+-- Оригинальное управление биндами меню и аима (в точности как в старой версии)
 table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
     if Settings.IsBindingMenuKey then
         if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -870,19 +870,6 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
             Settings.AimKey = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
             Settings.IsBindingAimKey = false
             AimKeyBtn.Text = "    Клавиша Аима (Aim Key): " .. tostring(input.KeyCode.Name ~= "" and input.KeyCode.Name or input.UserInputType.Name)
-        end
-        return
-    end
-
-    if Settings.IsBindingMoonwalkKey then
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            if input.KeyCode == Enum.KeyCode.Escape then
-                Settings.IsBindingMoonwalkKey = false
-            else
-                Settings.MoonwalkKey = input.KeyCode
-                Settings.IsBindingMoonwalkKey = false
-            end
-            updateMoonwalkBindText()
         end
         return
     end
