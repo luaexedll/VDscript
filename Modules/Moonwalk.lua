@@ -1,35 +1,58 @@
--- Modules/Moonwalk.lua
-local Moonwalk = {}
+--[[
+    VD_Script - Moonwalk Module
+    Integrated into Misc Tab with customizable Keybind and Unbind support.
+]]
+
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
 
-function Moonwalk.Apply(settingsTable, connectionHolder)
-    if settingsTable.MoonwalkEnabled == nil then settingsTable.MoonwalkEnabled = false end
-    if settingsTable.MoonwalkKey == nil then settingsTable.MoonwalkKey = Enum.KeyCode.Q end
-    if settingsTable.IsBindingMoonwalkKey == nil then settingsTable.IsBindingMoonwalkKey = false end
+local player = Players.LocalPlayer
 
-    local inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if settingsTable.IsBindingMoonwalkKey then
+local MoonwalkModule = {}
+MoonwalkModule.__index = MoonwalkModule
+
+function MoonwalkModule.new()
+    local self = setmetatable({}, MoonwalkModule)
+    
+    self.Enabled = false
+    self.Keybind = Enum.KeyCode.Q -- Бинд по умолчанию (можно изменить)
+    self.IsWaitingForBind = false
+    self.Connection = nil
+    
+    return self
+end
+
+-- Метод для запуска логики удержания клавиши мунволка
+function MoonwalkModule:StartLoop()
+    if self.Connection then
+        self.Connection:Disconnect()
+    end
+
+    self.Connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if self.IsWaitingForBind then
             if input.UserInputType == Enum.UserInputType.Keyboard then
-                if input.KeyCode == Enum.KeyCode.Escape then
-                    settingsTable.IsBindingMoonwalkKey = false
-                else
-                    settingsTable.MoonwalkKey = input.KeyCode
-                    settingsTable.IsBindingMoonwalkKey = false
+                self.Keybind = input.KeyCode
+                self.IsWaitingForBind = false
+                if self.OnBindChanged then
+                    self.OnBindChanged(input.KeyCode.Name)
                 end
             end
             return
         end
 
-        if settingsTable.MoonwalkEnabled and not gameProcessed and input.KeyCode == settingsTable.MoonwalkKey then
+        -- Если включено, не в чате/интерфейсе игры и нажата забинженая клавиша
+        if self.Enabled and not gameProcessed and self.Keybind and input.KeyCode == self.Keybind then
             task.spawn(function()
-                while UserInputService:IsKeyDown(settingsTable.MoonwalkKey) and settingsTable.MoonwalkEnabled do
+                while UserInputService:IsKeyDown(self.Keybind) and self.Enabled do
+                    -- Нажимаем и удерживаем A
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.A, false, game)
                     task.wait(0.06)
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.A, false, game)
                     
                     task.wait(0.02)
 
+                    -- Нажимаем и удерживаем D
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.D, false, game)
                     task.wait(0.06)
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.D, false, game)
@@ -39,10 +62,27 @@ function Moonwalk.Apply(settingsTable, connectionHolder)
             end)
         end
     end)
+end
 
-    if connectionHolder then
-        table.insert(connectionHolder, inputConn)
+function MoonwalkModule:Toggle(state)
+    self.Enabled = state
+    if state then
+        self:StartLoop()
+    else
+        if self.Connection then
+            self.Connection:Disconnect()
+            self.Connection = nil
+        end
     end
 end
 
-return Moonwalk
+function MoonwalkModule:SetBind(keyCode)
+    self.Keybind = keyCode
+end
+
+function MoonwalkModule:ClearBind()
+    self.Keybind = nil
+    self.IsWaitingForBind = false
+end
+
+return MoonwalkModule
