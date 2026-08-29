@@ -4,17 +4,14 @@ local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 function Moonwalk.Apply(settingsTable, connectionHolder)
-    -- Инициализация настроек по умолчанию, если их нет
     if settingsTable.MoonwalkEnabled == nil then settingsTable.MoonwalkEnabled = false end
     if settingsTable.MoonwalkKey == nil then settingsTable.MoonwalkKey = Enum.KeyCode.Q end
     if settingsTable.IsBindingMoonwalkKey == nil then settingsTable.IsBindingMoonwalkKey = false end
 
-    -- Обработка нажатий клавиш для мунволка и бинда
     local inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if settingsTable.IsBindingMoonwalkKey then
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 if input.KeyCode == Enum.KeyCode.Escape then
-                    -- Если нажали Escape, отменяем бинд (оставляем старый)
                     settingsTable.IsBindingMoonwalkKey = false
                 else
                     settingsTable.MoonwalkKey = input.KeyCode
