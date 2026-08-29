@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Загрузка модулей (Замените URL-адреса на ваши реальные ссылки из GitHub Raw)
+-- Загрузка модулей
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NextKiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NextKiller.lua"))()
@@ -15,6 +15,7 @@ local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/l
 local BoostFPS = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/BoostFPS.lua"))()
 local FullBright = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/FullBright.lua"))()
 local Fov = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Fov.lua"))()
+local Moonwalk = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Moonwalk.lua"))()
 
 local Connections = {}
 local ActiveTasks = {}
@@ -576,6 +577,62 @@ CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5
 end)
 CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
 
+-- Moonwalk в одной полоске для вкладки Misc
+local MoonwalkContainer = Instance.new("Frame")
+MoonwalkContainer.Size = UDim2.new(1, 0, 0, 36)
+MoonwalkContainer.BackgroundTransparency = 1
+MoonwalkContainer.LayoutOrder = 7
+MoonwalkContainer.Parent = tabMisc
+
+local MoonwalkToggleBtn = Instance.new("TextButton")
+MoonwalkToggleBtn.Size = UDim2.new(0.65, -3, 1, 0)
+MoonwalkToggleBtn.BackgroundColor3 = Settings.MoonwalkEnabled and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+MoonwalkToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
+MoonwalkToggleBtn.TextSize = 13
+MoonwalkToggleBtn.Font = Enum.Font.Gotham
+MoonwalkToggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+MoonwalkToggleBtn.Parent = MoonwalkContainer
+Instance.new("UICorner", MoonwalkToggleBtn).CornerRadius = UDim.new(0, 6)
+
+local function updateMoonwalkToggleText()
+    local stateStr = Settings.MoonwalkEnabled and "ON" or "OFF"
+    MoonwalkToggleBtn.Text = "    Moonwalk: " .. stateStr
+end
+updateMoonwalkToggleText()
+
+MoonwalkToggleBtn.MouseButton1Click:Connect(function()
+    Settings.MoonwalkEnabled = not Settings.MoonwalkEnabled
+    MoonwalkToggleBtn.BackgroundColor3 = Settings.MoonwalkEnabled and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+    updateMoonwalkToggleText()
+end)
+
+local MoonwalkBindBtn = Instance.new("TextButton")
+MoonwalkBindBtn.Size = UDim2.new(0.35, -3, 1, 0)
+MoonwalkBindBtn.Position = UDim2.new(0.65, 3, 0, 0)
+MoonwalkBindBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+MoonwalkBindBtn.TextSize = 13
+MoonwalkBindBtn.Font = Enum.Font.Gotham
+MoonwalkBindBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+MoonwalkBindBtn.Parent = MoonwalkContainer
+Instance.new("UICorner", MoonwalkBindBtn).CornerRadius = UDim.new(0, 6)
+
+local function updateMoonwalkBindText()
+    if Settings.IsBindingMoonwalkKey then
+        MoonwalkBindBtn.Text = "[Press key...]"
+    else
+        MoonwalkBindBtn.Text = "Bind: " .. tostring(Settings.MoonwalkKey.Name)
+    end
+end
+updateMoonwalkBindText()
+
+MoonwalkBindBtn.MouseButton1Click:Connect(function()
+    Settings.IsBindingMoonwalkKey = true
+    updateMoonwalkBindText()
+end)
+
+-- Инициализация логики Moonwalk модуля
+Moonwalk.Apply(Settings, Connections)
+
 -- Settings Tab UI
 CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
 
@@ -816,6 +873,20 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
         end
         return
     end
+
+    -- Отслеживание сброса бинда мунволка через Escape, если находимся в процессе переназначения
+    if Settings.IsBindingMoonwalkKey then
+        if input.KeyCode == Enum.KeyCode.Escape then
+            Settings.IsBindingMoonwalkKey = false
+            updateMoonwalkBindText()
+            return
+        elseif input.UserInputType == Enum.UserInputType.Keyboard then
+            Settings.MoonwalkKey = input.KeyCode
+            Settings.IsBindingMoonwalkKey = false
+            updateMoonwalkBindText()
+            return
+        end
+    end
     
     if not gp and input.KeyCode == Settings.MenuKeyBind then
         MainFrame.Visible = not MainFrame.Visible
@@ -956,7 +1027,6 @@ end))
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     
-    -- Обновление AIM и FOV камеры через модуль
     Fov.Update(Settings, FOVCircle, MainFrame)
     
     if now - LastUpdateTick < 0.03 then return end
@@ -967,7 +1037,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         RefreshESPMapObjects() 
     end
     
-    -- Обновление NextKiller через модуль
     NextKiller.Update(Settings, IndicatorGui, function(p)
         return NameChanger.GetDisplayName(p, Settings)
     end)
@@ -985,7 +1054,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         else table.remove(ActiveGenerators, i) end
     end
 
-    -- Обновление ESP игроков через модуль
     Esp.Update(Settings, function(p)
         return NameChanger.GetDisplayName(p, Settings)
     end)
