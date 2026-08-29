@@ -15,6 +15,8 @@ local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/l
 local BoostFPS = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/BoostFPS.lua"))()
 local FullBright = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/FullBright.lua"))()
 local Fov = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Fov.lua"))()
+local MoonwalkModule = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Moonwalk.lua"))()
+local moonwalkInst = MoonwalkModule.new()
 
 local Connections = {}
 local ActiveTasks = {}
@@ -575,6 +577,68 @@ CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5
     BoostFPS.Apply(state, Connections)
 end)
 CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
+
+-- Интеграция Moonwalk во вкладку Misc
+local MoonwalkToggleBtn = Instance.new("TextButton")
+MoonwalkToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+MoonwalkToggleBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+MoonwalkToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
+MoonwalkToggleBtn.TextSize = 13
+MoonwalkToggleBtn.Font = Enum.Font.Gotham
+MoonwalkToggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+MoonwalkToggleBtn.Text = "    Moonwalk: OFF"
+MoonwalkToggleBtn.LayoutOrder = 7
+MoonwalkToggleBtn.Parent = tabMisc
+Instance.new("UICorner", MoonwalkToggleBtn).CornerRadius = UDim.new(0, 6)
+
+MoonwalkToggleBtn.MouseButton1Click:Connect(function()
+    local newState = not moonwalkInst.Enabled
+    moonwalkInst:Toggle(newState)
+    MoonwalkToggleBtn.BackgroundColor3 = newState and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+    MoonwalkToggleBtn.Text = "    Moonwalk: " .. (newState and "ON" or "OFF")
+end)
+
+local MoonwalkRow = Instance.new("Frame")
+MoonwalkRow.Size = UDim2.new(1, 0, 0, 36)
+MoonwalkRow.BackgroundTransparency = 1
+MoonwalkRow.LayoutOrder = 8
+MoonwalkRow.Parent = tabMisc
+
+local MoonwalkBindBtn = Instance.new("TextButton")
+MoonwalkBindBtn.Size = UDim2.new(0.68, 0, 1, 0)
+MoonwalkBindBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+MoonwalkBindBtn.TextXAlignment = Enum.TextXAlignment.Left
+MoonwalkBindBtn.TextSize = 13
+MoonwalkBindBtn.Font = Enum.Font.Gotham
+MoonwalkBindBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+MoonwalkBindBtn.Text = "    Bind: Q"
+MoonwalkBindBtn.Parent = MoonwalkRow
+Instance.new("UICorner", MoonwalkBindBtn).CornerRadius = UDim.new(0, 6)
+
+MoonwalkBindBtn.MouseButton1Click:Connect(function()
+    moonwalkInst.IsWaitingForBind = true
+    MoonwalkBindBtn.Text = "    Press any key..."
+end)
+
+moonwalkInst.OnBindChanged = function(keyName)
+    MoonwalkBindBtn.Text = "    Bind: " .. keyName
+end
+
+local MoonwalkUnbindBtn = Instance.new("TextButton")
+MoonwalkUnbindBtn.Size = UDim2.new(0.29, 0, 1, 0)
+MoonwalkUnbindBtn.Position = UDim2.new(0.71, 0, 0, 0)
+MoonwalkUnbindBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+MoonwalkUnbindBtn.TextSize = 13
+MoonwalkUnbindBtn.Font = Enum.Font.GothamBold
+MoonwalkUnbindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MoonwalkUnbindBtn.Text = "Unbind"
+MoonwalkUnbindBtn.Parent = MoonwalkRow
+Instance.new("UICorner", MoonwalkUnbindBtn).CornerRadius = UDim.new(0, 6)
+
+MoonwalkUnbindBtn.MouseButton1Click:Connect(function()
+    moonwalkInst:ClearBind()
+    MoonwalkBindBtn.Text = "    Bind: None"
+end)
 
 -- Settings Tab UI
 CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
