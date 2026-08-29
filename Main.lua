@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Загрузка модулей
+-- Загрузка модулей (Замените URL-адреса на ваши реальные ссылки из GitHub Raw)
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NextKiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NextKiller.lua"))()
@@ -576,28 +576,6 @@ CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5
 end)
 CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
 
--- Добавленная функция Moonwalk в Misc вкладку
-if Settings.EnableMoonwalk == nil then Settings.EnableMoonwalk = false end
-CreateToggle(tabMisc, "Moonwalk", "EnableMoonwalk", 7)
-
-table.insert(ActiveTasks, task.spawn(function()
-    while true do
-        task.wait()
-        if Settings.EnableMoonwalk then
-            local character = LocalPlayer.Character
-            if character then
-                local humanoid = character:FindFirstChildOfClass("Humanoid")
-                local rootPart = character:FindFirstChild("HumanoidRootPart")
-                if humanoid and rootPart then
-                    if humanoid.MoveDirection.Magnitude > 0 then
-                        rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, math.pi, 0)
-                    end
-                end
-            end
-        end
-    end
-end))
-
 -- Settings Tab UI
 CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
 
@@ -739,25 +717,6 @@ MenuBindButton.MouseButton1Click:Connect(function()
     safeUpdateMenuBindText()
 end)
 
--- Отдельная кнопка для сброса/очистки бинда меню (теперь не ломает открытие гуи)
-local ResetMenuBindBtn = Instance.new("TextButton")
-ResetMenuBindBtn.Size = UDim2.new(1, 0, 0, 34)
-ResetMenuBindBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-ResetMenuBindBtn.TextXAlignment = Enum.TextXAlignment.Left
-ResetMenuBindBtn.TextSize = 13
-ResetMenuBindBtn.Font = Enum.Font.Gotham
-ResetMenuBindBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
-ResetMenuBindBtn.Text = "    Сбросить бинд меню на Insert"
-ResetMenuBindBtn.LayoutOrder = 8
-ResetMenuBindBtn.Parent = tabSettings
-Instance.new("UICorner", ResetMenuBindBtn).CornerRadius = UDim.new(0, 6)
-
-ResetMenuBindBtn.MouseButton1Click:Connect(function()
-    Settings.MenuKeyBind = Enum.KeyCode.Insert
-    Settings.IsBindingMenuKey = false
-    safeUpdateMenuBindText()
-end)
-
 local ClearScriptBtn = Instance.new("TextButton")
 ClearScriptBtn.Size = UDim2.new(1, 0, 0, 34)
 ClearScriptBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
@@ -766,7 +725,7 @@ ClearScriptBtn.TextSize = 13
 ClearScriptBtn.Font = Enum.Font.GothamBold
 ClearScriptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ClearScriptBtn.Text = "    Clear Script (Unload)"
-ClearScriptBtn.LayoutOrder = 9
+ClearScriptBtn.LayoutOrder = 8
 ClearScriptBtn.Parent = tabSettings
 Instance.new("UICorner", ClearScriptBtn).CornerRadius = UDim.new(0, 6)
 
@@ -838,7 +797,7 @@ table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
     Esp.CleanupPlayerCache(player)
 end))
 
--- Управление биндами меню и аима (Исправлено, чтобы не ломать переключение)
+-- Управление биндами меню и аима
 table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
     if Settings.IsBindingMenuKey then
         if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -860,7 +819,6 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
     
     if not gp and input.KeyCode == Settings.MenuKeyBind then
         MainFrame.Visible = not MainFrame.Visible
-        QuickIcon.Visible = not MainFrame.Visible
     end
 end))
 
