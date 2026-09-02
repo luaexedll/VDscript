@@ -1,17 +1,13 @@
--- Main.lua (Fluent UI Version - Fixed Logic)
+-- Main.lua
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Загрузка Fluent UI Library
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-
--- Загрузка оригинальных модулей
+-- Загрузка модулей (Замените URL-адреса на ваши реальные ссылки из GitHub Raw)
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NextKiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NextKiller.lua"))()
@@ -29,15 +25,15 @@ local ActivePallets = {}
 local LastUpdateTick = 0
 local LastFullESPRefresh = 0
 
-local IndicatorGui
+local ScreenGui, IconGui, IndicatorGui, IntroGui
 
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
 FOVCircle.Filled = false
 FOVCircle.Thickness = 1.5
-FOVCircle.Color = Color3.fromRGB(0, 242, 254)
+FOVCircle.Color = Color3.fromRGB(50, 120, 255)
 FOVCircle.NumSides = 64
-FOVCircle.Radius = Settings.FOVRadius or 120
+FOVCircle.Radius = Settings.FOVRadius
 
 local function ProtectGui(gui)
     pcall(function()
@@ -55,217 +51,751 @@ local function ProtectGui(gui)
     end
 end
 
-IndicatorGui = Instance.new("ScreenGui")
-IndicatorGui.Name = "ChasedIndsSKV"
-IndicatorGui.IgnoreGuiInset = true
-IndicatorGui.DisplayOrder = 999
-ProtectGui(IndicatorGui)
+-- Анимация загрузки
+local function ShowIntroAnimation()
+    IntroGui = Instance.new("ScreenGui")
+    IntroGui.Name = "SKV_IntroGui"
+    IntroGui.ResetOnSpawn = false
+    ProtectGui(IntroGui)
 
--- Создание Fluent Окна с привязкой бинда из Settings (по умолчанию RightShift)
-local Window = Fluent:CreateWindow({
-    Title = "SKV by takeushi/neshluha2017",
-    SubTitle = "Violence District",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-    Acrylic = false,
-    Theme = "Darker",
-    MinimizeKey = Settings.MenuKeyBind or Enum.KeyCode.RightShift
-})
+    local IntroFrame = Instance.new("Frame")
+    IntroFrame.Size = UDim2.new(0, 300, 0, 70)
+    IntroFrame.Position = UDim2.new(0.5, -150, 0.85, 0)
+    IntroFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    IntroFrame.BackgroundTransparency = 1
+    IntroFrame.BorderSizePixel = 0
+    IntroFrame.Parent = IntroGui
 
-Fluent:SetTheme({
-    Background = Color3.fromRGB(13, 17, 23),
-    ContainerFrame = Color3.fromRGB(11, 14, 20),
-    Accent = Color3.fromRGB(0, 242, 254),
-    Text = Color3.fromRGB(240, 240, 240),
-    SubText = Color3.fromRGB(150, 160, 175)
-})
+    local IntroCorner = Instance.new("UICorner")
+    IntroCorner.CornerRadius = UDim.new(0, 8)
+    IntroCorner.Parent = IntroFrame
 
-local Tabs = {
-    Aim = Window:AddTab({ Title = "Aim", Icon = "target" }),
-    Visuals = Window:AddTab({ Title = "Visuals", Icon = "eye" }),
-    Misc = Window:AddTab({ Title = "Misc", Icon = "sliders" }),
-    Config = Window:AddTab({ Title = "Config", Icon = "settings" }),
-    Credits = Window:AddTab({ Title = "Credits", Icon = "user" })
-}
+    local IntroLabel = Instance.new("TextLabel")
+    IntroLabel.Size = UDim2.new(1, 0, 1, 0)
+    IntroLabel.BackgroundTransparency = 1
+    IntroLabel.Text = "SKV by takeushi"
+    IntroLabel.TextColor3 = Color3.fromRGB(50, 120, 255)
+    IntroLabel.TextTransparency = 1
+    IntroLabel.TextSize = 16
+    IntroLabel.Font = Enum.Font.GothamBold
+    IntroLabel.Parent = IntroFrame
 
--- ==================== ВКЛАДКА 1: AIM ====================
-Tabs.Aim:AddSection("AIM CONFIGURATION")
+    TweenService:Create(IntroFrame, TweenInfo.new(0.6), {BackgroundTransparency = 0.15}):Play()
+    TweenService:Create(IntroLabel, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
 
-local AimToggle = Tabs.Aim:AddToggle("AimToggle", { Title = "Aim", SubTitle = "Enable aim assist", Default = Settings.EnableAim or false })
-AimToggle:OnChanged(function(Value)
-    Settings.EnableAim = Value
+    task.delay(2.2, function()
+        pcall(function()
+            TweenService:Create(IntroFrame, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(IntroLabel, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
+            task.wait(0.6)
+            IntroGui:Destroy()
+        end)
+    end)
+end
+
+ShowIntroAnimation()
+
+local function BuildUI()
+    if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
+    if IconGui then pcall(function() IconGui:Destroy() end) end
+    if IndicatorGui then pcall(function() IndicatorGui:Destroy() end) end
+
+    ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "ESPSuiteSKVTakeushi"
+    ScreenGui.ResetOnSpawn = false
+    ProtectGui(ScreenGui)
+
+    IconGui = Instance.new("ScreenGui")
+    IconGui.Name = "ESPQuickIconSKV"
+    IconGui.ResetOnSpawn = false
+    ProtectGui(IconGui)
+
+    IndicatorGui = Instance.new("ScreenGui")
+    IndicatorGui.Name = "ChasedIndsSKV"
+    IndicatorGui.IgnoreGuiInset = true
+    IndicatorGui.DisplayOrder = 999
+    ProtectGui(IndicatorGui)
+end
+
+BuildUI()
+
+local QuickIcon = Instance.new("TextButton")
+QuickIcon.Size = UDim2.new(0, 36, 0, 36)
+QuickIcon.Position = UDim2.new(0, 20, 0.5, -18)
+QuickIcon.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+QuickIcon.Text = "SKV"
+QuickIcon.TextColor3 = Color3.fromRGB(50, 120, 255)
+QuickIcon.TextSize = 12
+QuickIcon.Font = Enum.Font.GothamBold
+QuickIcon.Visible = false
+QuickIcon.Active = true
+QuickIcon.Draggable = true
+QuickIcon.Parent = IconGui
+
+local qic = Instance.new("UICorner")
+qic.CornerRadius = UDim.new(0, 6)
+qic.Parent = QuickIcon
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 520, 0, 420)
+MainFrame.Position = UDim2.new(0.5, -260, 0.5, -210)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 8)
+MainCorner.Parent = MainFrame
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 8)
+HeaderCorner.Parent = Header
+
+local HeaderCover = Instance.new("Frame")
+HeaderCover.Size = UDim2.new(1, 0, 0, 10)
+HeaderCover.Position = UDim2.new(0, 0, 1, -10)
+HeaderCover.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+HeaderCover.BorderSizePixel = 0
+HeaderCover.Parent = Header
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(0, 240, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "SKV by takeushi"
+TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 255)
+TitleLabel.TextSize = 14
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = Header
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 28, 0, 28)
+CloseButton.Position = UDim2.new(1, -35, 0.5, -14)
+CloseButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseButton.TextSize = 12
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = Header
+
+local cbc = Instance.new("UICorner")
+cbc.CornerRadius = UDim.new(0, 6)
+cbc.Parent = CloseButton
+
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    QuickIcon.Visible = true
 end)
 
-local AimTargetDropdown = Tabs.Aim:AddDropdown("AimTarget", {
-    Title = "Aim Target",
-    SubTitle = "Target bone selection",
-    Values = {"Head", "Body"},
-    Default = (Settings.TargetPart == "HumanoidRootPart" and "Body" or "Head"),
-})
-AimTargetDropdown:OnChanged(function(Value)
-    Settings.TargetPart = (Value == "Head") and "Head" or "HumanoidRootPart"
+QuickIcon.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    QuickIcon.Visible = false
 end)
 
-local AimKeybind = Tabs.Aim:AddKeybind("AimKey", {
-    Title = "Aim Key",
-    SubTitle = "Press to bind",
-    Mode = "Hold",
-    Default = "MouseButton2",
-    ChangedCallback = function(NewKey)
-        if typeof(NewKey) == "EnumItem" then
-            Settings.AimKey = NewKey
-        elseif typeof(NewKey) == "string" then
-            if NewKey == "MB2" or NewKey == "RMB" or NewKey == "MouseButton2" then
-                Settings.AimKey = Enum.UserInputType.MouseButton2
-            elseif NewKey == "MB1" or NewKey == "LMB" or NewKey == "MouseButton1" then
-                Settings.AimKey = Enum.UserInputType.MouseButton1
-            elseif Enum.KeyCode[NewKey] then
-                Settings.AimKey = Enum.KeyCode[NewKey]
+local TabButtonsContainer = Instance.new("Frame")
+TabButtonsContainer.Size = UDim2.new(0, 360, 0, 30)
+TabButtonsContainer.Position = UDim2.new(1, -400, 0.5, -15)
+TabButtonsContainer.BackgroundTransparency = 1
+TabButtonsContainer.Parent = Header
+
+local UIListLayoutTabs = Instance.new("UIListLayout")
+UIListLayoutTabs.FillDirection = Enum.FillDirection.Horizontal
+UIListLayoutTabs.HorizontalAlignment = Enum.HorizontalAlignment.Right
+UIListLayoutTabs.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayoutTabs.Padding = UDim.new(0, 3)
+UIListLayoutTabs.Parent = TabButtonsContainer
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -20, 1, -65)
+ContentFrame.Position = UDim2.new(0, 10, 0, 55)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+local Tabs = {}
+local ActiveTabName = "Visuals"
+
+local function CreateTabContent(name)
+    local tabContainer = Instance.new("ScrollingFrame")
+    tabContainer.Name = name .. "Tab"
+    tabContainer.Size = UDim2.new(1, 0, 1, 0)
+    tabContainer.BackgroundTransparency = 1
+    tabContainer.BorderSizePixel = 0
+    tabContainer.ScrollBarThickness = 4
+    tabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+    tabContainer.Visible = (name == ActiveTabName)
+    tabContainer.Parent = ContentFrame
+    
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = tabContainer
+    
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        tabContainer.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    end)
+    
+    Tabs[name] = tabContainer
+    return tabContainer
+end
+
+local tabVisuals = CreateTabContent("Visuals")
+local tabAim = CreateTabContent("Aim")
+local tabColors = CreateTabContent("Colors")
+local tabMisc = CreateTabContent("Misc")
+local tabSettings = CreateTabContent("Settings")
+local tabCredits = CreateTabContent("Credits")
+
+local function CreateTabButton(name, text, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 52, 0, 28)
+    btn.BackgroundColor3 = (name == ActiveTabName) and Color3.fromRGB(50, 120, 255) or Color3.fromRGB(35, 35, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 10
+    btn.Font = Enum.Font.GothamMedium
+    btn.LayoutOrder = order
+    btn.Parent = TabButtonsContainer
+    
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 5)
+    c.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        ActiveTabName = name
+        for tName, tFrame in pairs(Tabs) do
+            tFrame.Visible = (tName == name)
+        end
+        for _, child in ipairs(TabButtonsContainer:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundColor3 = (child == btn) and Color3.fromRGB(50, 120, 255) or Color3.fromRGB(35, 35, 45)
             end
         end
+    end)
+end
+
+CreateTabButton("Visuals", "Visuals", 1)
+CreateTabButton("Aim", "Aim", 2)
+CreateTabButton("Colors", "Colors", 3)
+CreateTabButton("Misc", "Misc", 4)
+CreateTabButton("Settings", "Config", 5)
+CreateTabButton("Credits", "Credits", 6)
+
+local function CreateToggle(parent, label, settingKey, order, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = Settings[settingKey] and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.TextSize = 13
+    btn.Font = Enum.Font.Gotham
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    btn.LayoutOrder = order
+    btn.Parent = parent
+    
+    local function updateText()
+        local stateStr = Settings[settingKey] and "ON" or "OFF"
+        btn.Text = "    " .. label .. ": " .. stateStr
     end
-})
+    updateText()
+    
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        Settings[settingKey] = not Settings[settingKey]
+        btn.BackgroundColor3 = Settings[settingKey] and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+        updateText()
+        if callback then callback(Settings[settingKey]) end
+    end)
+end
 
-local SmoothSlider = Tabs.Aim:AddSlider("SmoothSlider", {
-    Title = "Smooth",
-    SubTitle = "Aim smoothness",
-    Min = 0.1,
-    Max = 1.0,
-    Default = Settings.Smoothness or 0.5,
-    Rounding = 1,
-    Callback = function(Value)
-        Settings.Smoothness = Value
+-- Visuals Tab UI
+local RoleBtn = Instance.new("TextButton")
+RoleBtn.Size = UDim2.new(1, 0, 0, 36)
+RoleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+RoleBtn.TextXAlignment = Enum.TextXAlignment.Left
+RoleBtn.TextSize = 13
+RoleBtn.Font = Enum.Font.Gotham
+RoleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RoleBtn.LayoutOrder = 1
+RoleBtn.Parent = tabVisuals
+
+local function updateRoleBtnText()
+    if Settings.RoleLogic == "EnemiesOnly" then
+        RoleBtn.Text = "    Mode: Enemies Only"
+    else
+        RoleBtn.Text = "    Mode: All Players"
     end
-})
+end
+updateRoleBtnText()
+Instance.new("UICorner", RoleBtn).CornerRadius = UDim.new(0, 6)
 
-local WallCheckToggle = Tabs.Aim:AddToggle("WallCheck", { Title = "Wall Check", SubTitle = "Skip targets behind walls", Default = Settings.WallCheck or false })
-WallCheckToggle:OnChanged(function(Value) Settings.WallCheck = Value end)
-
-local TeamCheckToggle = Tabs.Aim:AddToggle("TeamCheck", { Title = "Team Check", SubTitle = "Skip teammates", Default = Settings.TeamCheck or false })
-TeamCheckToggle:OnChanged(function(Value) Settings.TeamCheck = Value end)
-
-local FOVSlider = Tabs.Aim:AddSlider("FOVSlider", {
-    Title = "FOV Size",
-    SubTitle = "Aim field of view",
-    Min = 10,
-    Max = 500,
-    Default = Settings.FOVRadius or 120,
-    Rounding = 0,
-    Callback = function(Value)
-        Settings.FOVRadius = Value
-        FOVCircle.Radius = Value
+RoleBtn.MouseButton1Click:Connect(function()
+    if Settings.RoleLogic == "EnemiesOnly" then
+        Settings.RoleLogic = "All"
+    else
+        Settings.RoleLogic = "EnemiesOnly"
     end
-})
-
--- ==================== ВКЛАДКА 2: VISUALS ====================
-Tabs.Visuals:AddSection("VISUAL CONFIGURATION")
-
-local ModeDropdown = Tabs.Visuals:AddDropdown("ModeDropdown", {
-    Title = "Mode",
-    SubTitle = "Target selection",
-    Values = {"Enemies only", "All players"},
-    Default = (Settings.RoleLogic == "All" and "All players" or "Enemies only")
-})
-ModeDropdown:OnChanged(function(Value)
-    Settings.RoleLogic = (Value == "Enemies only") and "EnemiesOnly" or "All"
+    updateRoleBtnText()
 end)
 
-local ShowNamesToggle = Tabs.Visuals:AddToggle("ShowNames", { Title = "Show names", SubTitle = "Display player names", Default = Settings.ShowName or false })
-ShowNamesToggle:OnChanged(function(Value) Settings.ShowName = Value end)
+local ESPMainContainer = Instance.new("Frame")
+ESPMainContainer.Size = UDim2.new(1, 0, 0, 36)
+ESPMainContainer.BackgroundTransparency = 1
+ESPMainContainer.LayoutOrder = 2
+ESPMainContainer.Parent = tabVisuals
 
-local ShowDistanceToggle = Tabs.Visuals:AddToggle("ShowDistance", { Title = "Show distance", SubTitle = "Display distance to target", Default = Settings.ShowDistance or false })
-ShowDistanceToggle:OnChanged(function(Value) Settings.ShowDistance = Value end)
+local ESPLayout = Instance.new("UIListLayout")
+ESPLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ESPLayout.Padding = UDim.new(0, 4)
+ESPLayout.Parent = ESPMainContainer
 
-local ESPToggle = Tabs.Visuals:AddToggle("ESPToggle", { Title = "ESP", SubTitle = "Players ESP", Default = Settings.EnableESP or false })
-ESPToggle:OnChanged(function(Value) Settings.EnableESP = Value end)
+local ESPToggleBtn = Instance.new("TextButton")
+ESPToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+ESPToggleBtn.BackgroundColor3 = Settings.EnableESP and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+ESPToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
+ESPToggleBtn.TextSize = 13
+ESPToggleBtn.Font = Enum.Font.Gotham
+ESPToggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+ESPToggleBtn.LayoutOrder = 1
+ESPToggleBtn.Parent = ESPMainContainer
 
-local GenESPToggle = Tabs.Visuals:AddToggle("GenESP", { Title = "Generator ESP", SubTitle = "ESP for generators", Default = Settings.EnableGeneratorsESP or false })
-GenESPToggle:OnChanged(function(Value) Settings.EnableGeneratorsESP = Value end)
+local ESPSubContainer = Instance.new("Frame")
+ESPSubContainer.Size = UDim2.new(1, 0, 0, 185)
+ESPSubContainer.BackgroundTransparency = 1
+ESPSubContainer.Visible = false
+ESPSubContainer.LayoutOrder = 2
+ESPSubContainer.Parent = ESPMainContainer
 
-local PalletESPToggle = Tabs.Visuals:AddToggle("PalletESP", { Title = "Pallet ESP", SubTitle = "ESP for pallet", Default = Settings.EnablePalletsESP or false })
-PalletESPToggle:OnChanged(function(Value) Settings.EnablePalletsESP = Value end)
+local subLayout = Instance.new("UIListLayout")
+subLayout.SortOrder = Enum.SortOrder.LayoutOrder
+subLayout.Padding = UDim.new(0, 4)
+subLayout.Parent = ESPSubContainer
 
-local CameraFOVSlider = Tabs.Visuals:AddSlider("CameraFOV", {
-    Title = "FOV",
-    SubTitle = "Camera Field of View",
-    Min = 60,
-    Max = 120,
-    Default = Settings.CameraFOVValue or 90,
-    Rounding = 0,
-    Callback = function(Value)
-        Settings.CameraFOVValue = Value
-        Settings.EnableCameraFOV = true
+CreateToggle(ESPSubContainer, "Skeleton ESP", "Skeleton", 1)
+CreateToggle(ESPSubContainer, "Chams (Highlight)", "Chams", 2)
+CreateToggle(ESPSubContainer, "Tracers", "Tracers", 3)
+CreateToggle(ESPSubContainer, "Show Names", "ShowName", 4)
+CreateToggle(ESPSubContainer, "Show Distance", "ShowDistance", 5)
+
+local function updateESPToggleText()
+    local stateStr = Settings.EnableESP and "ON" or "OFF"
+    local arrowStr = ESPSubContainer.Visible and " [▲]" or " [▼]"
+    ESPToggleBtn.Text = "    ESP Players Main: " .. stateStr .. arrowStr
+end
+updateESPToggleText()
+Instance.new("UICorner", ESPToggleBtn).CornerRadius = UDim.new(0, 6)
+
+ESPToggleBtn.MouseButton1Click:Connect(function()
+    Settings.EnableESP = not Settings.EnableESP
+    ESPToggleBtn.BackgroundColor3 = Settings.EnableESP and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+    
+    local isOpen = not ESPSubContainer.Visible
+    ESPSubContainer.Visible = isOpen
+    if isOpen then
+        ESPMainContainer.Size = UDim2.new(1, 0, 0, 36 + 185 + 4)
+    else
+        ESPMainContainer.Size = UDim2.new(1, 0, 0, 36)
     end
-})
-
-local NextKillerParagraph = Tabs.Visuals:AddParagraph({
-    Title = "NEXT KILLER",
-    Content = "NEXT KILLER: KILLER | YOU"
-})
-
--- ==================== ВКЛАДКА 3: MISC ====================
-Tabs.Misc:AddSection("MISCELLANEOUS")
-
-local NoFogToggle = Tabs.Misc:AddToggle("NoFog", { Title = "No Fog", SubTitle = "Disable game fog", Default = Settings.RemoveFog or false })
-NoFogToggle:OnChanged(function(Value) Settings.RemoveFog = Value end)
-
-local FPSBoostToggle = Tabs.Misc:AddToggle("FPSBoost", { Title = "FPS Boost", SubTitle = "Optimize graphics", Default = Settings.FPSBoostApplied or false })
-FPSBoostToggle:OnChanged(function(Value)
-    Settings.FPSBoostApplied = Value
-    BoostFPS.Apply(Value, Connections)
+    updateESPToggleText()
 end)
 
-local FullBrightToggle = Tabs.Misc:AddToggle("FullBright", { Title = "Full Bright", SubTitle = "Disable darkness", Default = Settings.EnableFullBright or false })
-FullBrightToggle:OnChanged(function(Value) Settings.EnableFullBright = Value end)
+CreateToggle(tabVisuals, "Generator ESP", "EnableGeneratorsESP", 3)
+CreateToggle(tabVisuals, "Pallet ESP", "EnablePalletsESP", 4)
 
-local MoonwalkToggle = Tabs.Misc:AddToggle("Moonwalk", { Title = "Moonwalk", SubTitle = "Enable moonwalk feature", Default = false })
-MoonwalkToggle:OnChanged(function(Value)
-    moonwalkInst:Toggle(Value)
+-- Aim Tab UI
+CreateToggle(tabAim, "Включить Aim Assist", "EnableAim", 1)
+
+local PartBtn = Instance.new("TextButton")
+PartBtn.Size = UDim2.new(1, 0, 0, 36)
+PartBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+PartBtn.TextXAlignment = Enum.TextXAlignment.Left
+PartBtn.TextSize = 13
+PartBtn.Font = Enum.Font.Gotham
+PartBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+PartBtn.Text = "    Часть тела: Голова (Head)"
+PartBtn.LayoutOrder = 2
+PartBtn.Parent = tabAim
+Instance.new("UICorner", PartBtn).CornerRadius = UDim.new(0, 6)
+
+PartBtn.MouseButton1Click:Connect(function()
+    if Settings.TargetPart == "Head" then
+        Settings.TargetPart = "HumanoidRootPart"
+        PartBtn.Text = "    Часть тела: Торс (Body)"
+    else
+        Settings.TargetPart = "Head"
+        PartBtn.Text = "    Часть тела: Голова (Head)"
+    end
 end)
 
--- ==================== ВКЛАДКА 4: CONFIG ====================
-Tabs.Config:AddSection("CONFIGURATIONS")
+local AimKeyBtn = Instance.new("TextButton")
+AimKeyBtn.Size = UDim2.new(1, 0, 0, 36)
+AimKeyBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+AimKeyBtn.TextXAlignment = Enum.TextXAlignment.Left
+AimKeyBtn.TextSize = 13
+AimKeyBtn.Font = Enum.Font.Gotham
+AimKeyBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+AimKeyBtn.Text = "    Клавиша Аима (Aim Key): MouseButton2 (ПКМ)"
+AimKeyBtn.LayoutOrder = 3
+AimKeyBtn.Parent = tabAim
+Instance.new("UICorner", AimKeyBtn).CornerRadius = UDim.new(0, 6)
 
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
+AimKeyBtn.MouseButton1Click:Connect(function()
+    Settings.IsBindingAimKey = true
+    AimKeyBtn.Text = "    Клавиша Аима: [Нажмите кнопку...]"
+end)
 
-SaveManager:BuildConfigFolder(Fluent, "SKV_Script_Configs")
-InterfaceManager:BuildInterfaceSection(Tabs.Config)
-SaveManager:BuildConfigSection(Tabs.Config)
+local SmoothLevels = {0.1, 0.25, 0.5, 1.0}
+local SmoothNames = {"Очень плавно (0.1)", "Стандарт (0.25)", "Быстро (0.5)", "Мгновенно (1.0)"}
+local currentSmoothIdx = 2
 
-local UnloadButton = Tabs.Config:AddButton({
-    Title = "Unload UI",
-    Description = "Completely remove script from memory",
-    Callback = function()
-        FullCleanup()
-        Fluent:Destroy()
+local SmoothBtn = Instance.new("TextButton")
+SmoothBtn.Size = UDim2.new(1, 0, 0, 36)
+SmoothBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+SmoothBtn.TextXAlignment = Enum.TextXAlignment.Left
+SmoothBtn.TextSize = 13
+SmoothBtn.Font = Enum.Font.Gotham
+SmoothBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+SmoothBtn.Text = "    Плавность: " .. SmoothNames[currentSmoothIdx]
+SmoothBtn.LayoutOrder = 4
+SmoothBtn.Parent = tabAim
+Instance.new("UICorner", SmoothBtn).CornerRadius = UDim.new(0, 6)
+
+SmoothBtn.MouseButton1Click:Connect(function()
+    currentSmoothIdx = currentSmoothIdx + 1
+    if currentSmoothIdx > #SmoothLevels then currentSmoothIdx = 1 end
+    Settings.Smoothness = SmoothLevels[currentSmoothIdx]
+    SmoothBtn.Text = "    Плавность: " .. SmoothNames[currentSmoothIdx]
+end)
+
+CreateToggle(tabAim, "Проверка стен (WallCheck)", "WallCheck", 5)
+CreateToggle(tabAim, "Проверка команды (TeamCheck)", "TeamCheck", 6)
+CreateToggle(tabAim, "Отображать круг FOV", "EnableFOV", 7)
+
+local FOVBox = Instance.new("TextBox")
+FOVBox.Size = UDim2.new(1, 0, 0, 36)
+FOVBox.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+FOVBox.PlaceholderText = "Радиус FOV (например: 120)"
+FOVBox.Text = tostring(Settings.FOVRadius)
+FOVBox.TextXAlignment = Enum.TextXAlignment.Left
+FOVBox.TextSize = 13
+FOVBox.Font = Enum.Font.Gotham
+FOVBox.TextColor3 = Color3.fromRGB(240, 240, 240)
+FOVBox.LayoutOrder = 8
+FOVBox.Parent = tabAim
+Instance.new("UICorner", FOVBox).CornerRadius = UDim.new(0, 6)
+
+FOVBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local num = tonumber(FOVBox.Text)
+    if num then
+        Settings.FOVRadius = num
+        FOVCircle.Radius = num
     end
-})
+end)
 
--- ==================== ВКЛАДКА 5: CREDITS ====================
-Tabs.Credits:AddSection("CREDITS & CONTACTS")
+-- Colors Tab UI
+local function CreateColorPickerButton(parent, label, colorKey, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.TextSize = 13
+    btn.Font = Enum.Font.Gotham
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    btn.LayoutOrder = order
+    btn.Parent = parent
+    
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 24, 0, 20)
+    indicator.Position = UDim2.new(1, -34, 0.5, -10)
+    indicator.BackgroundColor3 = Settings[colorKey]
+    indicator.Parent = btn
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 4)
+    
+    btn.Text = "    " .. label
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    
+    local colorsList = {
+        Color3.fromRGB(255, 60, 60),
+        Color3.fromRGB(60, 160, 255),
+        Color3.fromRGB(60, 255, 60),
+        Color3.fromRGB(255, 255, 60),
+        Color3.fromRGB(150, 0, 200),
+        Color3.fromRGB(74, 255, 181),
+        Color3.fromRGB(255, 255, 255)
+    }
+    local idx = 1
+    
+    btn.MouseButton1Click:Connect(function()
+        idx = idx % #colorsList + 1
+        Settings[colorKey] = colorsList[idx]
+        indicator.BackgroundColor3 = Settings[colorKey]
+    end)
+end
 
-Tabs.Credits:AddParagraph({
-    Title = "По всем вопросам:",
-    Content = "Telegram: @whoisSKV"
-})
+CreateColorPickerButton(tabColors, "Killer / Enemy Color", "KillerColor", 1)
+CreateColorPickerButton(tabColors, "Survivor / Ally Color", "SurvivorColor", 2)
+CreateColorPickerButton(tabColors, "Generator Color", "GeneratorColor", 3)
+CreateColorPickerButton(tabColors, "Pallet Color", "PalletColor", 4)
 
-Tabs.Credits:AddButton({
-    Title = "Copy Telegram Handle",
-    Description = "Click to copy @whoisSKV",
-    Callback = function()
-        if setclipboard then
-            setclipboard("@whoisSKV")
-            Fluent:Notify({ Title = "Copied", Content = "Telegram contact copied to clipboard!", Duration = 3 })
-        end
+-- Misc Tab UI
+CreateToggle(tabMisc, "Next Killer Display", "EnableNextKiller", 1)
+CreateToggle(tabMisc, "Custom Camera FOV", "EnableCameraFOV", 2)
+
+local CamFOVBox = Instance.new("TextBox")
+CamFOVBox.Size = UDim2.new(1, 0, 0, 36)
+CamFOVBox.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+CamFOVBox.PlaceholderText = "Поле зрения Камеры (например: 90)"
+CamFOVBox.Text = tostring(Settings.CameraFOVValue)
+CamFOVBox.TextXAlignment = Enum.TextXAlignment.Left
+CamFOVBox.TextSize = 13
+CamFOVBox.Font = Enum.Font.Gotham
+CamFOVBox.TextColor3 = Color3.fromRGB(240, 240, 240)
+CamFOVBox.LayoutOrder = 3
+CamFOVBox.Parent = tabMisc
+Instance.new("UICorner", CamFOVBox).CornerRadius = UDim.new(0, 6)
+
+CamFOVBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local val = tonumber(CamFOVBox.Text)
+    if val then
+        Settings.CameraFOVValue = math.clamp(val, 30, 120)
     end
-})
+end)
 
--- ==================== ИСХОДНАЯ ЛОГИКА ====================
+CreateToggle(tabMisc, "Full Bright (Ночное зрение)", "EnableFullBright", 4)
+CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5, function(state)
+    BoostFPS.Apply(state, Connections)
+end)
+CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
 
-function FullCleanup()
+-- Интеграция Moonwalk во вкладку Misc
+local MoonwalkToggleBtn = Instance.new("TextButton")
+MoonwalkToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+MoonwalkToggleBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+MoonwalkToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
+MoonwalkToggleBtn.TextSize = 13
+MoonwalkToggleBtn.Font = Enum.Font.Gotham
+MoonwalkToggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+MoonwalkToggleBtn.Text = "    Moonwalk: OFF"
+MoonwalkToggleBtn.LayoutOrder = 7
+MoonwalkToggleBtn.Parent = tabMisc
+Instance.new("UICorner", MoonwalkToggleBtn).CornerRadius = UDim.new(0, 6)
+
+MoonwalkToggleBtn.MouseButton1Click:Connect(function()
+    local newState = not moonwalkInst.Enabled
+    moonwalkInst:Toggle(newState)
+    MoonwalkToggleBtn.BackgroundColor3 = newState and Color3.fromRGB(40, 110, 70) or Color3.fromRGB(28, 28, 36)
+    MoonwalkToggleBtn.Text = "    Moonwalk: " .. (newState and "ON" or "OFF")
+end)
+
+local MoonwalkRow = Instance.new("Frame")
+MoonwalkRow.Size = UDim2.new(1, 0, 0, 36)
+MoonwalkRow.BackgroundTransparency = 1
+MoonwalkRow.LayoutOrder = 8
+MoonwalkRow.Parent = tabMisc
+
+local MoonwalkBindBtn = Instance.new("TextButton")
+MoonwalkBindBtn.Size = UDim2.new(0.68, 0, 1, 0)
+MoonwalkBindBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+MoonwalkBindBtn.TextXAlignment = Enum.TextXAlignment.Left
+MoonwalkBindBtn.TextSize = 13
+MoonwalkBindBtn.Font = Enum.Font.Gotham
+MoonwalkBindBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
+MoonwalkBindBtn.Text = "    Bind: Q"
+MoonwalkBindBtn.Parent = MoonwalkRow
+Instance.new("UICorner", MoonwalkBindBtn).CornerRadius = UDim.new(0, 6)
+
+MoonwalkBindBtn.MouseButton1Click:Connect(function()
+    moonwalkInst.IsWaitingForBind = true
+    MoonwalkBindBtn.Text = "    Press any key..."
+end)
+
+moonwalkInst.OnBindChanged = function(keyName)
+    MoonwalkBindBtn.Text = "    Bind: " .. keyName
+end
+
+local MoonwalkUnbindBtn = Instance.new("TextButton")
+MoonwalkUnbindBtn.Size = UDim2.new(0.29, 0, 1, 0)
+MoonwalkUnbindBtn.Position = UDim2.new(0.71, 0, 0, 0)
+MoonwalkUnbindBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+MoonwalkUnbindBtn.TextSize = 13
+MoonwalkUnbindBtn.Font = Enum.Font.GothamBold
+MoonwalkUnbindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MoonwalkUnbindBtn.Text = "Unbind"
+MoonwalkUnbindBtn.Parent = MoonwalkRow
+Instance.new("UICorner", MoonwalkUnbindBtn).CornerRadius = UDim.new(0, 6)
+
+MoonwalkUnbindBtn.MouseButton1Click:Connect(function()
+    moonwalkInst:ClearBind()
+    MoonwalkBindBtn.Text = "    Bind: None"
+end)
+
+-- Settings Tab UI
+CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
+
+local TargetNickBox = Instance.new("TextBox")
+TargetNickBox.Size = UDim2.new(1, 0, 0, 34)
+TargetNickBox.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+TargetNickBox.Text = ""
+TargetNickBox.PlaceholderText = "Оригинальный ник"
+TargetNickBox.TextXAlignment = Enum.TextXAlignment.Left
+TargetNickBox.TextSize = 13
+TargetNickBox.Font = Enum.Font.Gotham
+TargetNickBox.TextColor3 = Color3.fromRGB(240, 240, 240)
+TargetNickBox.LayoutOrder = 2
+TargetNickBox.Parent = tabSettings
+Instance.new("UICorner", TargetNickBox).CornerRadius = UDim.new(0, 6)
+
+local NewNickBox = Instance.new("TextBox")
+NewNickBox.Size = UDim2.new(1, 0, 0, 34)
+NewNickBox.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+NewNickBox.Text = ""
+NewNickBox.PlaceholderText = "Новый фейк-ник"
+NewNickBox.TextXAlignment = Enum.TextXAlignment.Left
+NewNickBox.TextSize = 13
+NewNickBox.Font = Enum.Font.Gotham
+NewNickBox.TextColor3 = Color3.fromRGB(240, 240, 240)
+NewNickBox.LayoutOrder = 3
+NewNickBox.Parent = tabSettings
+Instance.new("UICorner", NewNickBox).CornerRadius = UDim.new(0, 6)
+
+local ApplyNickBtn = Instance.new("TextButton")
+ApplyNickBtn.Size = UDim2.new(1, 0, 0, 34)
+ApplyNickBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 255)
+ApplyNickBtn.TextXAlignment = Enum.TextXAlignment.Left
+ApplyNickBtn.TextSize = 13
+ApplyNickBtn.Font = Enum.Font.GothamBold
+ApplyNickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ApplyNickBtn.Text = "    + Добавить подмену ника"
+ApplyNickBtn.LayoutOrder = 4
+ApplyNickBtn.Parent = tabSettings
+Instance.new("UICorner", ApplyNickBtn).CornerRadius = UDim.new(0, 6)
+
+local NicksListHeader = Instance.new("TextLabel")
+NicksListHeader.Size = UDim2.new(1, 0, 0, 24)
+NicksListHeader.BackgroundTransparency = 1
+NicksListHeader.Text = "    Активные подмены (нажми чтобы удалить):"
+NicksListHeader.TextColor3 = Color3.fromRGB(180, 180, 200)
+NicksListHeader.TextSize = 12
+NicksListHeader.Font = Enum.Font.GothamBold
+NicksListHeader.TextXAlignment = Enum.TextXAlignment.Left
+NicksListHeader.LayoutOrder = 5
+NicksListHeader.Parent = tabSettings
+
+local NicksListContainer = Instance.new("Frame")
+NicksListContainer.Size = UDim2.new(1, 0, 0, 90)
+NicksListContainer.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+NicksListContainer.BorderSizePixel = 0
+NicksListContainer.LayoutOrder = 6
+NicksListContainer.Parent = tabSettings
+Instance.new("UICorner", NicksListContainer).CornerRadius = UDim.new(0, 6)
+
+local NicksScrolling = Instance.new("ScrollingFrame")
+NicksScrolling.Size = UDim2.new(1, -6, 1, -6)
+NicksScrolling.Position = UDim2.new(0, 3, 0, 3)
+NicksScrolling.BackgroundTransparency = 1
+NicksScrolling.BorderSizePixel = 0
+NicksScrolling.ScrollBarThickness = 3
+NicksScrolling.CanvasSize = UDim2.new(0, 0, 0, 0)
+NicksScrolling.Parent = NicksListContainer
+
+local NicksListLayout = Instance.new("UIListLayout")
+NicksListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NicksListLayout.Padding = UDim.new(0, 4)
+NicksListLayout.Parent = NicksScrolling
+
+NicksListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    NicksScrolling.CanvasSize = UDim2.new(0, 0, 0, NicksListLayout.AbsoluteContentSize.Y + 5)
+end)
+
+local function RefreshNicksListUI()
+    for _, child in ipairs(NicksScrolling:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    
+    local index = 1
+    for orig, fake in pairs(Settings.CustomNicks) do
+        local itemBtn = Instance.new("TextButton")
+        itemBtn.Size = UDim2.new(1, 0, 0, 26)
+        itemBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+        itemBtn.TextXAlignment = Enum.TextXAlignment.Left
+        itemBtn.TextSize = 11
+        itemBtn.Font = Enum.Font.Gotham
+        itemBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+        itemBtn.Text = "    [-] " .. orig .. " -> " .. fake
+        itemBtn.LayoutOrder = index
+        itemBtn.Parent = NicksScrolling
+        Instance.new("UICorner", itemBtn).CornerRadius = UDim.new(0, 4)
+        
+        itemBtn.MouseButton1Click:Connect(function()
+            Settings.CustomNicks[orig] = nil
+            RefreshNicksListUI()
+        end)
+        index = index + 1
+    end
+end
+
+ApplyNickBtn.MouseButton1Click:Connect(function()
+    local target = TargetNickBox.Text
+    local fake = NewNickBox.Text
+    if target ~= "" and fake ~= "" then
+        Settings.CustomNicks[target] = fake
+        TargetNickBox.Text = ""
+        NewNickBox.Text = ""
+        RefreshNicksListUI()
+    end
+end)
+
+local MenuBindButton = Instance.new("TextButton")
+MenuBindButton.Size = UDim2.new(1, 0, 0, 34)
+MenuBindButton.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+MenuBindButton.TextXAlignment = Enum.TextXAlignment.Left
+MenuBindButton.TextSize = 13
+MenuBindButton.Font = Enum.Font.Gotham
+MenuBindButton.TextColor3 = Color3.fromRGB(240, 240, 240)
+MenuBindButton.LayoutOrder = 7
+MenuBindButton.Parent = tabSettings
+Instance.new("UICorner", MenuBindButton).CornerRadius = UDim.new(0, 6)
+
+local function safeUpdateMenuBindText()
+    if Settings.IsBindingMenuKey then
+        MenuBindButton.Text = "    Menu Toggle Key: [Press any key...]"
+    else
+        MenuBindButton.Text = "    Menu Toggle Key: " .. tostring(Settings.MenuKeyBind.Name)
+    end
+end
+safeUpdateMenuBindText()
+
+MenuBindButton.MouseButton1Click:Connect(function()
+    Settings.IsBindingMenuKey = true
+    safeUpdateMenuBindText()
+end)
+
+local ClearScriptBtn = Instance.new("TextButton")
+ClearScriptBtn.Size = UDim2.new(1, 0, 0, 34)
+ClearScriptBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+ClearScriptBtn.TextXAlignment = Enum.TextXAlignment.Left
+ClearScriptBtn.TextSize = 13
+ClearScriptBtn.Font = Enum.Font.GothamBold
+ClearScriptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ClearScriptBtn.Text = "    Clear Script (Unload)"
+ClearScriptBtn.LayoutOrder = 8
+ClearScriptBtn.Parent = tabSettings
+Instance.new("UICorner", ClearScriptBtn).CornerRadius = UDim.new(0, 6)
+
+local function FullCleanup()
+    moonwalkInst:Toggle(false)
+    BoostFPS.Apply(false)
     for _, conn in ipairs(Connections) do pcall(function() conn:Disconnect() end) end
     Connections = {}
     for _, taskThread in ipairs(ActiveTasks) do pcall(function() task.cancel(taskThread) end) end
@@ -292,13 +822,87 @@ function FullCleanup()
 
     pcall(function() Camera.FieldOfView = 70 end)
     pcall(function() FOVCircle:Remove() end)
+    pcall(function() if ScreenGui then ScreenGui:Destroy() end end)
+    pcall(function() if IconGui then IconGui:Destroy() end end)
     pcall(function() if IndicatorGui then IndicatorGui:Destroy() end end)
+    pcall(function() if IntroGui then IntroGui:Destroy() end end)
 end
 
--- Исходное подключение ввода Aim к Fov модулю
-local fovConns = Fov.SetupInputs(Settings, nil)
+ClearScriptBtn.MouseButton1Click:Connect(function() FullCleanup() end)
+
+-- Credits UI
+local CreditLabel1 = Instance.new("TextLabel")
+CreditLabel1.Size = UDim2.new(1, 0, 0, 30)
+CreditLabel1.BackgroundTransparency = 1
+CreditLabel1.Text = "Telegram: @whoisSKV"
+CreditLabel1.TextColor3 = Color3.fromRGB(50, 160, 255)
+CreditLabel1.TextSize = 16
+CreditLabel1.Font = Enum.Font.GothamBold
+CreditLabel1.TextXAlignment = Enum.TextXAlignment.Left
+CreditLabel1.LayoutOrder = 1
+CreditLabel1.Parent = tabCredits
+
+local CreditLabel2 = Instance.new("TextLabel")
+CreditLabel2.Size = UDim2.new(1, 0, 0, 50)
+CreditLabel2.BackgroundTransparency = 1
+CreditLabel2.Text = "пишите если возникли вопросы."
+CreditLabel2.TextColor3 = Color3.fromRGB(200, 200, 200)
+CreditLabel2.TextSize = 13
+CreditLabel2.Font = Enum.Font.Gotham
+CreditLabel2.TextXAlignment = Enum.TextXAlignment.Left
+CreditLabel2.TextWrapped = true
+CreditLabel2.LayoutOrder = 2
+CreditLabel2.Parent = tabCredits
+
+-- Подключаем модуль Aim
+local fovConns = Fov.SetupInputs(Settings, AimKeyBtn)
 for _, c in ipairs(fovConns) do table.insert(Connections, c) end
 
+-- Обработка выходов игроков
+table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
+    Esp.CleanupPlayerCache(player)
+end))
+
+-- Управление биндами меню и аима
+table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
+    if Settings.IsBindingMenuKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            Settings.MenuKeyBind = input.KeyCode
+            Settings.IsBindingMenuKey = false
+            safeUpdateMenuBindText()
+        end
+        return
+    end
+
+    if Settings.IsBindingAimKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+            Settings.AimKey = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
+            Settings.IsBindingAimKey = false
+            AimKeyBtn.Text = "    Клавиша Аима (Aim Key): " .. tostring(input.KeyCode.Name ~= "" and input.KeyCode.Name or input.UserInputType.Name)
+        end
+        return
+    end
+    
+    if not gp and input.KeyCode == Settings.MenuKeyBind then
+        MainFrame.Visible = not MainFrame.Visible
+        QuickIcon.Visible = false
+    end
+end))
+
+-- Фоновые задачи (Nick Changer, FullBright)
+table.insert(ActiveTasks, task.spawn(function()
+    while task.wait(0.5) do
+        NameChanger.Run(Settings)
+    end
+end))
+
+table.insert(ActiveTasks, task.spawn(function()
+    while task.wait(0.1) do
+        FullBright.Update(Settings)
+    end
+end))
+
+-- Вспомогательные функции для генераторов и паллет
 local function GetGameValue(obj, name)
     if not obj then return nil end
     local attr = obj:GetAttribute(name)
@@ -327,8 +931,8 @@ local function ApplyObjectHighlight(object, color, enabled)
         h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         h.Parent = object
     end
-    h.FillColor = color or Color3.fromRGB(0, 242, 254)
-    h.OutlineColor = color or Color3.fromRGB(0, 242, 254)
+    h.FillColor = color
+    h.OutlineColor = color
 end
 
 local function CreateBillboardTag(text, color, size, textSize)
@@ -373,8 +977,7 @@ local function updateGeneratorProgress(generator)
     
     ApplyObjectHighlight(generator, Settings.GeneratorColor, true)
     local cp = math.clamp(percent, 0, 100)
-    local genColor = Settings.GeneratorColor or Color3.fromRGB(0, 242, 254)
-    local finalColor = cp < 50 and genColor:Lerp(Color3.fromRGB(180, 180, 0), cp / 50) or Color3.fromRGB(180, 180, 0):Lerp(Color3.fromRGB(0, 150, 0), (cp - 50) / 50)
+    local finalColor = cp < 50 and Settings.GeneratorColor:Lerp(Color3.fromRGB(180, 180, 0), cp / 50) or Color3.fromRGB(180, 180, 0):Lerp(Color3.fromRGB(0, 150, 0), (cp - 50) / 50)
     
     local percentStr = string.format("[%.2f%%]", percent)
     if not billboard then
@@ -416,29 +1019,12 @@ table.insert(Connections, workspace.ChildAdded:Connect(function(c)
     end 
 end))
 
-table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
-    Esp.CleanupPlayerCache(player)
-end))
-
--- Фоновые задачи
-table.insert(ActiveTasks, task.spawn(function()
-    while task.wait(0.5) do
-        NameChanger.Run(Settings)
-    end
-end))
-
-table.insert(ActiveTasks, task.spawn(function()
-    while task.wait(0.1) do
-        FullBright.Update(Settings)
-    end
-end))
-
--- Исходный цикл обновления
+-- Главный рендер-цикл
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     
-    -- Обновление AIM / FOV
-    Fov.Update(Settings, FOVCircle, nil)
+    -- Обновление AIM и FOV камеры через модуль
+    Fov.Update(Settings, FOVCircle, MainFrame)
     
     if now - LastUpdateTick < 0.03 then return end
     LastUpdateTick = now
@@ -448,16 +1034,10 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         RefreshESPMapObjects() 
     end
     
-    -- Обновление NextKiller
+    -- Обновление NextKiller через модуль
     NextKiller.Update(Settings, IndicatorGui, function(p)
         return NameChanger.GetDisplayName(p, Settings)
     end)
-    
-    if NextKillerParagraph then
-        local killerText = "NEXT KILLER: " .. (Settings.NextKillerName or "UNKNOWN")
-        NextKillerParagraph:SetTitle("NEXT KILLER STATUS")
-        NextKillerParagraph:SetDesc(killerText)
-    end
     
     for i = #ActivePallets, 1, -1 do
         local p = ActivePallets[i]
@@ -472,11 +1052,10 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         else table.remove(ActiveGenerators, i) end
     end
 
-    -- Обновление ESP Игроков
+    -- Обновление ESP игроков через модуль
     Esp.Update(Settings, function(p)
         return NameChanger.GetDisplayName(p, Settings)
     end)
 end))
 
 RefreshESPMapObjects()
-SaveManager:LoadAutoloadConfig()
