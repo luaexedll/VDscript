@@ -1,4 +1,4 @@
--- Main.lua (Fluent UI Version)
+-- Main.lua (Fluent UI Version - Fixed Logic)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11,7 +11,7 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
--- Загрузка модулей
+-- Загрузка оригинальных модулей
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NextKiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NextKiller.lua"))()
@@ -61,18 +61,17 @@ IndicatorGui.IgnoreGuiInset = true
 IndicatorGui.DisplayOrder = 999
 ProtectGui(IndicatorGui)
 
--- Создание Fluent Окна
+-- Создание Fluent Окна с привязкой бинда из Settings (по умолчанию RightShift)
 local Window = Fluent:CreateWindow({
     Title = "SKV by takeushi/neshluha2017",
     SubTitle = "Violence District",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
+    Acrylic = false,
     Theme = "Darker",
-    MinimizeKey = Enum.KeyCode.RightControl
+    MinimizeKey = Settings.MenuKeyBind or Enum.KeyCode.RightShift
 })
 
--- Кастомная стилизация темы Dark Navy / Obsidian + Cyan Accent
 Fluent:SetTheme({
     Background = Color3.fromRGB(13, 17, 23),
     ContainerFrame = Color3.fromRGB(11, 14, 20),
@@ -89,8 +88,6 @@ local Tabs = {
     Credits = Window:AddTab({ Title = "Credits", Icon = "user" })
 }
 
-local Options = Fluent.Options
-
 -- ==================== ВКЛАДКА 1: AIM ====================
 Tabs.Aim:AddSection("AIM CONFIGURATION")
 
@@ -103,7 +100,7 @@ local AimTargetDropdown = Tabs.Aim:AddDropdown("AimTarget", {
     Title = "Aim Target",
     SubTitle = "Target bone selection",
     Values = {"Head", "Body"},
-    Default = "Head",
+    Default = (Settings.TargetPart == "HumanoidRootPart" and "Body" or "Head"),
 })
 AimTargetDropdown:OnChanged(function(Value)
     Settings.TargetPart = (Value == "Head") and "Head" or "HumanoidRootPart"
@@ -115,7 +112,17 @@ local AimKeybind = Tabs.Aim:AddKeybind("AimKey", {
     Mode = "Hold",
     Default = "MouseButton2",
     ChangedCallback = function(NewKey)
-        Settings.AimKey = NewKey
+        if typeof(NewKey) == "EnumItem" then
+            Settings.AimKey = NewKey
+        elseif typeof(NewKey) == "string" then
+            if NewKey == "MB2" or NewKey == "RMB" or NewKey == "MouseButton2" then
+                Settings.AimKey = Enum.UserInputType.MouseButton2
+            elseif NewKey == "MB1" or NewKey == "LMB" or NewKey == "MouseButton1" then
+                Settings.AimKey = Enum.UserInputType.MouseButton1
+            elseif Enum.KeyCode[NewKey] then
+                Settings.AimKey = Enum.KeyCode[NewKey]
+            end
+        end
     end
 })
 
@@ -157,7 +164,7 @@ local ModeDropdown = Tabs.Visuals:AddDropdown("ModeDropdown", {
     Title = "Mode",
     SubTitle = "Target selection",
     Values = {"Enemies only", "All players"},
-    Default = "Enemies only"
+    Default = (Settings.RoleLogic == "All" and "All players" or "Enemies only")
 })
 ModeDropdown:OnChanged(function(Value)
     Settings.RoleLogic = (Value == "Enemies only") and "EnemiesOnly" or "All"
@@ -256,7 +263,7 @@ Tabs.Credits:AddButton({
     end
 })
 
--- ==================== ОБРАБОТКА И ЛОГИКА ====================
+-- ==================== ИСХОДНАЯ ЛОГИКА ====================
 
 function FullCleanup()
     for _, conn in ipairs(Connections) do pcall(function() conn:Disconnect() end) end
@@ -288,7 +295,10 @@ function FullCleanup()
     pcall(function() if IndicatorGui then IndicatorGui:Destroy() end end)
 end
 
--- Вспомогательные функции Map Objects
+-- Исходное подключение ввода Aim к Fov модулю
+local fovConns = Fov.SetupInputs(Settings, nil)
+for _, c in ipairs(fovConns) do table.insert(Connections, c) end
+
 local function GetGameValue(obj, name)
     if not obj then return nil end
     local attr = obj:GetAttribute(name)
@@ -399,7 +409,6 @@ local function RefreshESPMapObjects()
     end
 end
 
--- Обработка событий
 table.insert(Connections, workspace.ChildAdded:Connect(function(c) 
     if c.Name == "Map" then 
         task.wait(1) 
@@ -424,22 +433,10 @@ table.insert(ActiveTasks, task.spawn(function()
     end
 end))
 
--- Главный Рендер-Цикл
+-- Исходный цикл обновления
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     
-    -- Синхронизация бинда Аима из Fluent Keybind
-    if Options.AimKey then
-        local bindVal = Options.AimKey.Value
-        if bindVal == "MB2" or bindVal == "RMB" or bindVal == "MouseButton2" then
-            Settings.AimKey = Enum.UserInputType.MouseButton2
-        elseif bindVal == "MB1" or bindVal == "LMB" or bindVal == "MouseButton1" then
-            Settings.AimKey = Enum.UserInputType.MouseButton1
-        elseif Enum.KeyCode[bindVal] then
-            Settings.AimKey = Enum.KeyCode[bindVal]
-        end
-    end
-
     -- Обновление AIM / FOV
     Fov.Update(Settings, FOVCircle, nil)
     
@@ -456,8 +453,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         return NameChanger.GetDisplayName(p, Settings)
     end)
     
-    -- Обновление динамического текста Next Killer в интерфейсе
-    if Options.NextKillerParagraph then
+    if NextKillerParagraph then
         local killerText = "NEXT KILLER: " .. (Settings.NextKillerName or "UNKNOWN")
         NextKillerParagraph:SetTitle("NEXT KILLER STATUS")
         NextKillerParagraph:SetDesc(killerText)
