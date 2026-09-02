@@ -9,7 +9,6 @@ local Settings = {
     ShowDistance = false,
     EnableGeneratorsESP = true,
     EnablePalletsESP = true,
-    EnableNextKiller = true,
     RoleLogic = "All",
     KillerColor = Color3.fromRGB(255, 60, 60),
     SurvivorColor = Color3.fromRGB(60, 160, 255),
