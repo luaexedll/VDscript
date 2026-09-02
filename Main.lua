@@ -21,6 +21,7 @@ local Connections = {}
 local ActiveTasks = {}
 local ActiveGenerators = {}
 local ActivePallets = {}
+local GeneratorProgressCache = {}
 local LastUpdateTick = 0
 local LastFullESPRefresh = 0
 
@@ -990,30 +991,53 @@ local function CreateBillboardTag(text, color, size, textSize)
 end
 
 local function updateGeneratorProgress(generator)
-    if not generator or not generator.Parent then return true end
+    if not generator or not generator.Parent then
+        GeneratorProgressCache[generator] = nil
+        return true
+    end
     if not Settings.EnableGeneratorsESP then
         local billboard = generator:FindFirstChild("GenSKV_Tag")
         if billboard then billboard:Destroy() end
         ApplyObjectHighlight(generator, Settings.GeneratorColor, false)
+        GeneratorProgressCache[generator] = nil
         return false
     end
-    
+
     local percent = GetGameValue(generator, "RepairProgress") or GetGameValue(generator, "Progress") or 0
     local billboard = generator:FindFirstChild("GenSKV_Tag")
     
     if percent >= 100 then
         if billboard then billboard:Destroy() end
         ApplyObjectHighlight(generator, Settings.GeneratorColor, false)
+        GeneratorProgressCache[generator] = nil
         return true
     end
-    
+
     ApplyObjectHighlight(generator, Settings.GeneratorColor, true)
     local cp = math.clamp(percent, 0, 100)
     local finalColor = cp < 50 and Settings.GeneratorColor:Lerp(Color3.fromRGB(180, 180, 0), cp / 50) or Color3.fromRGB(180, 180, 0):Lerp(Color3.fromRGB(0, 150, 0), (cp - 50) / 50)
-    
-    local percentStr = string.format("[%.2f%%]", percent)
+
+    local now = tick()
+    local progressState = GeneratorProgressCache[generator]
+    local speed = 0
+    if progressState then
+        local elapsed = now - progressState.Time
+        if elapsed > 0 then
+            speed = (percent - progressState.Percent) / elapsed
+        end
+    end
+    GeneratorProgressCache[generator] = {
+        Percent = percent,
+        Time = now
+    }
+
+    local remaining = math.max(0, 100 - percent)
+    local eta = speed > 0 and remaining / speed or nil
+    local etaText = eta and string.format("%.1fs", eta) or "--"
+    local speedText = speed > 0 and string.format("+%.2f%%/s", speed) or "--"
+    local percentStr = string.format("[%.2f%%] Осталось: %.2f%% | Скорость: %s | Время: %s", percent, remaining, speedText, etaText)
     if not billboard then
-        billboard = CreateBillboardTag(percentStr, finalColor)
+        billboard = CreateBillboardTag(percentStr, finalColor, UDim2.new(0, 330, 0, 30), 9)
         billboard.Name, billboard.StudsOffset = "GenSKV_Tag", Vector3.new(0, 2, 0)
         billboard.Adornee = generator:FindFirstChild("defaultMaterial", true) or generator
         billboard.Parent = generator
