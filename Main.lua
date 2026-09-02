@@ -10,7 +10,6 @@ local LocalPlayer = Players.LocalPlayer
 -- Загрузка модулей (Замените URL-адреса на ваши реальные ссылки из GitHub Raw)
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
-local NextKiller = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NextKiller.lua"))()
 local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NameChanger.lua"))()
 local BoostFPS = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/BoostFPS.lua"))()
 local FullBright = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/FullBright.lua"))()
@@ -25,7 +24,8 @@ local ActivePallets = {}
 local LastUpdateTick = 0
 local LastFullESPRefresh = 0
 
-local ScreenGui, IconGui, IndicatorGui, IntroGui
+local ScreenGui, IconGui, IntroGui
+local NextKillerLabel
 
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
@@ -98,7 +98,6 @@ ShowIntroAnimation()
 local function BuildUI()
     if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
     if IconGui then pcall(function() IconGui:Destroy() end) end
-    if IndicatorGui then pcall(function() IndicatorGui:Destroy() end) end
 
     ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "ESPSuiteSKVTakeushi"
@@ -110,11 +109,6 @@ local function BuildUI()
     IconGui.ResetOnSpawn = false
     ProtectGui(IconGui)
 
-    IndicatorGui = Instance.new("ScreenGui")
-    IndicatorGui.Name = "ChasedIndsSKV"
-    IndicatorGui.IgnoreGuiInset = true
-    IndicatorGui.DisplayOrder = 999
-    ProtectGui(IndicatorGui)
 end
 
 BuildUI()
@@ -549,8 +543,7 @@ CreateColorPickerButton(tabColors, "Generator Color", "GeneratorColor", 3)
 CreateColorPickerButton(tabColors, "Pallet Color", "PalletColor", 4)
 
 -- Misc Tab UI
-CreateToggle(tabMisc, "Next Killer Display", "EnableNextKiller", 1)
-CreateToggle(tabMisc, "Custom Camera FOV", "EnableCameraFOV", 2)
+CreateToggle(tabMisc, "Custom Camera FOV", "EnableCameraFOV", 1)
 
 local CamFOVBox = Instance.new("TextBox")
 CamFOVBox.Size = UDim2.new(1, 0, 0, 36)
@@ -561,7 +554,7 @@ CamFOVBox.TextXAlignment = Enum.TextXAlignment.Left
 CamFOVBox.TextSize = 13
 CamFOVBox.Font = Enum.Font.Gotham
 CamFOVBox.TextColor3 = Color3.fromRGB(240, 240, 240)
-CamFOVBox.LayoutOrder = 3
+CamFOVBox.LayoutOrder = 2
 CamFOVBox.Parent = tabMisc
 Instance.new("UICorner", CamFOVBox).CornerRadius = UDim.new(0, 6)
 
@@ -572,11 +565,11 @@ CamFOVBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
-CreateToggle(tabMisc, "Full Bright (Ночное зрение)", "EnableFullBright", 4)
-CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 5, function(state)
+CreateToggle(tabMisc, "Full Bright (Ночное зрение)", "EnableFullBright", 3)
+CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 4, function(state)
     BoostFPS.Apply(state, Connections)
 end)
-CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 6)
+CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 5)
 
 -- Интеграция Moonwalk во вкладку Misc
 local MoonwalkToggleBtn = Instance.new("TextButton")
@@ -587,7 +580,7 @@ MoonwalkToggleBtn.TextSize = 13
 MoonwalkToggleBtn.Font = Enum.Font.Gotham
 MoonwalkToggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
 MoonwalkToggleBtn.Text = "    Moonwalk: OFF"
-MoonwalkToggleBtn.LayoutOrder = 7
+MoonwalkToggleBtn.LayoutOrder = 6
 MoonwalkToggleBtn.Parent = tabMisc
 Instance.new("UICorner", MoonwalkToggleBtn).CornerRadius = UDim.new(0, 6)
 
@@ -601,7 +594,7 @@ end)
 local MoonwalkRow = Instance.new("Frame")
 MoonwalkRow.Size = UDim2.new(1, 0, 0, 36)
 MoonwalkRow.BackgroundTransparency = 1
-MoonwalkRow.LayoutOrder = 8
+MoonwalkRow.LayoutOrder = 7
 MoonwalkRow.Parent = tabMisc
 
 local MoonwalkBindBtn = Instance.new("TextButton")
@@ -639,6 +632,18 @@ MoonwalkUnbindBtn.MouseButton1Click:Connect(function()
     moonwalkInst:ClearBind()
     MoonwalkBindBtn.Text = "    Bind: None"
 end)
+
+NextKillerLabel = Instance.new("TextLabel")
+NextKillerLabel.Size = UDim2.new(1, 0, 0, 34)
+NextKillerLabel.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+NextKillerLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+NextKillerLabel.TextSize = 13
+NextKillerLabel.Font = Enum.Font.GothamBold
+NextKillerLabel.TextXAlignment = Enum.TextXAlignment.Left
+NextKillerLabel.Text = "    Next Killer: Calculating..."
+NextKillerLabel.LayoutOrder = 8
+NextKillerLabel.Parent = tabMisc
+Instance.new("UICorner", NextKillerLabel).CornerRadius = UDim.new(0, 6)
 
 -- Settings Tab UI
 CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
@@ -824,7 +829,6 @@ local function FullCleanup()
     pcall(function() FOVCircle:Remove() end)
     pcall(function() if ScreenGui then ScreenGui:Destroy() end end)
     pcall(function() if IconGui then IconGui:Destroy() end end)
-    pcall(function() if IndicatorGui then IndicatorGui:Destroy() end end)
     pcall(function() if IntroGui then IntroGui:Destroy() end end)
 end
 
@@ -913,6 +917,34 @@ local function GetGameValue(obj, name)
         if success then return val end
     end
     return nil
+end
+
+local function UpdateNextKillerLabel()
+    if not NextKillerLabel or not NextKillerLabel.Parent then return end
+
+    local players = Players:GetPlayers()
+    table.sort(players, function(a, b)
+        local aAllowed = GetGameValue(a, "AllowKiller") or GetGameValue(a, "CanBeKiller") or false
+        local bAllowed = GetGameValue(b, "AllowKiller") or GetGameValue(b, "CanBeKiller") or false
+        if aAllowed ~= bAllowed then return aAllowed == true end
+        return (GetGameValue(a, "KillerChance") or GetGameValue(a, "Chance") or 0) >
+            (GetGameValue(b, "KillerChance") or GetGameValue(b, "Chance") or 0)
+    end)
+
+    local nextKiller = players[1]
+    if not nextKiller then
+        NextKillerLabel.Text = "    Next Killer: Calculating..."
+        return
+    end
+
+    local killerName = tostring(
+        GetGameValue(nextKiller, "SelectedKiller") or
+        GetGameValue(nextKiller, "Killer") or
+        GetGameValue(nextKiller, "Role") or
+        "Killer"
+    )
+    local playerName = nextKiller == LocalPlayer and "YOU" or NameChanger.GetDisplayName(nextKiller, Settings)
+    NextKillerLabel.Text = "    Next Killer: " .. killerName .. " | " .. playerName
 end
 
 local function ApplyObjectHighlight(object, color, enabled)
@@ -1034,10 +1066,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         RefreshESPMapObjects() 
     end
     
-    -- Обновление NextKiller через модуль
-    NextKiller.Update(Settings, IndicatorGui, function(p)
-        return NameChanger.GetDisplayName(p, Settings)
-    end)
+    UpdateNextKillerLabel()
     
     for i = #ActivePallets, 1, -1 do
         local p = ActivePallets[i]
