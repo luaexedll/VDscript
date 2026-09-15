@@ -1,179 +1,218 @@
-local BoostFPS = {}
-local Lighting = game:GetService("Lighting")
-local originalLighting = nil
-local optimizedObjects = {}
-local active = false
-local activeConnection = nil
-local activeLoop = nil
+-- Modules/Esp.lua
+local Esp = {}
+local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
 
-local function saveLighting()
-    if originalLighting then return end
-    originalLighting = {
-        GlobalShadows = Lighting.GlobalShadows,
-        Effects = {}
-    }
-    for _, effect in ipairs(Lighting:GetChildren()) do
-        if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") then
-            originalLighting.Effects[effect] = effect.Enabled
-        end
+local DrawingsCache = {}
+local HighlightsCache = {}
+
+local function createDrawing(objType, properties)
+    local obj = Drawing.new(objType)
+    for k, v in pairs(properties) do obj[k] = v end
+    return obj
+end
+
+local function hideDrawings(d)
+    if d.Tracer then d.Tracer.Visible = false end
+    if d.Name then d.Name.Visible = false end
+    if d.Skeleton then
+        for _, line in pairs(d.Skeleton) do line.Visible = false end
     end
 end
 
-local function restoreLighting()
-    if not originalLighting then return end
-    Lighting.GlobalShadows = originalLighting.GlobalShadows
-    for effect, enabled in pairs(originalLighting.Effects) do
-        if effect and effect.Parent then effect.Enabled = enabled end
+function Esp.CleanupPlayerCache(player)
+    if DrawingsCache[player] then
+        local dList = DrawingsCache[player]
+        if typeof(dList) == "table" then
+            if dList.Tracer then pcall(function() dList.Tracer:Remove() end) end
+            if dList.Name then pcall(function() dList.Name:Remove() end) end
+            if dList.Skeleton then
+                for _, line in pairs(dList.Skeleton) do pcall(function() line:Remove() end) end
+            end
+        end
+        DrawingsCache[player] = nil
     end
-    originalLighting = nil
-end
 
-local function optimizePart(obj)
-    -- 1. Оптимизация обычных деталей (сохраняем видимость и размеры)
-    if obj:IsA("BasePart") and not (obj.Parent and obj.Parent:FindFirstChild("Humanoid")) then
-        if obj.Material ~= Enum.Material.SmoothPlastic or obj.CastShadow == true then
-            if not optimizedObjects[obj] then
-                optimizedObjects[obj] = {
-                    Material = obj.Material,
-                    CastShadow = obj.CastShadow,
-                    Reflectance = obj.Reflectance
-                }
-            end
-            obj.Material = Enum.Material.SmoothPlastic
-            obj.CastShadow = false
-            obj.Reflectance = 0
-        end
-        
-        -- Упрощаем сетки MeshPart без уменьшения дальности прорисовки
-        if obj:IsA("MeshPart") and obj.RenderFidelity ~= Enum.RenderFidelity.Performance then
-            if not optimizedObjects[obj] then
-                optimizedObjects[obj] = optimizedObjects[obj] or {}
-                optimizedObjects[obj].RenderFidelity = obj.RenderFidelity
-            end
-            obj.RenderFidelity = Enum.RenderFidelity.Performance
-        end
-
-    -- 2. Скрытие текстур и декалей
-    elseif (obj:IsA("Decal") or obj:IsA("Texture")) and obj.Transparency ~= 1 then
-        if not optimizedObjects[obj] then
-            optimizedObjects[obj] = {Transparency = obj.Transparency}
-        end
-        obj.Transparency = 1
-
-    -- 3. Полное отключение тяжелых частиц (дым, огонь, искры)
-    elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
-        if obj.Enabled then
-            if not optimizedObjects[obj] then
-                optimizedObjects[obj] = {Enabled = obj.Enabled}
-            end
-            obj.Enabled = false
-        end
-
-    -- 4. Отключение следов (Trail) и лучей (Beam)
-    elseif (obj:IsA("Trail") or obj:IsA("Beam")) and obj.Enabled then
-        if not optimizedObjects[obj] then
-            optimizedObjects[obj] = {Enabled = obj.Enabled}
-        end
-        obj.Enabled = false
-
-    -- 5. Удаление подсветки (Highlight)
-    elseif obj:IsA("Highlight") and obj.Enabled then
-        if not optimizedObjects[obj] then
-            optimizedObjects[obj] = {Enabled = obj.Enabled}
-        end
-        obj.Enabled = false
+    if HighlightsCache[player] then
+        pcall(function() HighlightsCache[player]:Destroy() end)
+        HighlightsCache[player] = nil
     end
 end
 
-local function restoreObjects()
-    for obj, state in pairs(optimizedObjects) do
-        if obj and obj.Parent then
-            if obj:IsA("BasePart") then
-                obj.Material = state.Material
-                obj.CastShadow = state.CastShadow
-                if state.Reflectance then obj.Reflectance = state.Reflectance end
-                if obj:IsA("MeshPart") and state.RenderFidelity then
-                    obj.RenderFidelity = state.RenderFidelity
-                end
-            elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                obj.Transparency = state.Transparency
-            elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Highlight") then
-                if state.Enabled ~= nil then
-                    obj.Enabled = state.Enabled
-                end
-            end
-        end
+function Esp.ClearAll()
+    for _, p in ipairs(Players:GetPlayers()) do
+        Esp.CleanupPlayerCache(p)
     end
-    optimizedObjects = {}
+    DrawingsCache = {}
+    HighlightsCache = {}
 end
 
-function BoostFPS.Apply(state, connectionHolder)
-    if state then
-        if active then return end
-        active = true
-        saveLighting()
-        
-        Lighting.GlobalShadows = false
-        for _, effect in ipairs(Lighting:GetChildren()) do
-            if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky") or effect:IsA("BloomEffect") or effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
-                effect.Enabled = false
-            end
+local function getPlayerRole(player)
+    if player.Team then
+        local tName = string.lower(player.Team.Name)
+        if string.find(tName, "killer") or string.find(tName, "murderer") or string.find(tName, "monster") or string.find(tName, "hunter") then
+            return "Killer"
         end
-        
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            optimizePart(obj)
-        end
-        
-        activeConnection = workspace.DescendantAdded:Connect(function(obj)
-            optimizePart(obj)
-        end)
-        
-        if connectionHolder then
-            table.insert(connectionHolder, {
-                Disconnect = function()
-                    if activeConnection then
-                        activeConnection:Disconnect()
-                        activeConnection = nil
-                    end
-                end
-            })
-        end
-        
-        activeLoop = task.spawn(function()
-            while active do
-                task.wait(3)
-                if active     then
-                    for _, obj in ipairs(workspace:GetDescendants()) do
-                        optimizePart(obj)
-                    end
-                end
-            end
-        end)
-        
-        if connectionHolder then
-            table.insert(connectionHolder, {
-                Disconnect = function()
-                    active = false
-                    if activeLoop then
-                        pcall(function() task.cancel(activeLoop) end)
-                        activeLoop = nil
-                    end
-                end
-            })
-        end
+    end
+    return "Survivor"
+end
+
+local function determineColor(player, Settings)
+    if getPlayerRole(player) == "Killer" then
+        return Settings.KillerColor
     else
-        active = false
-        if activeConnection then
-            activeConnection:Disconnect()
-            activeConnection = nil
-        end
-        if activeLoop then
-            pcall(function() task.cancel(activeLoop) end)
-            activeLoop = nil
-        end
-        restoreObjects()
-        restoreLighting()
+        return Settings.SurvivorColor
     end
 end
 
-return BoostFPS
+local function shouldRenderPlayer(player, Settings)
+    if player == LocalPlayer then return false end
+    if not Settings.EnableESP then return false end
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return false end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return false end
+    
+    local localRole = getPlayerRole(LocalPlayer)
+    local targetRole = getPlayerRole(player)
+    if Settings.RoleLogic ~= "All" and localRole == targetRole then
+        return false
+    end
+    return true
+end
+
+local function updateHighlight(player, color, Settings)
+    if not player.Character or not Settings.Chams or not Settings.EnableESP then 
+        if HighlightsCache[player] then HighlightsCache[player]:Destroy(); HighlightsCache[player] = nil end
+        return 
+    end
+    
+    local hl = HighlightsCache[player]
+    if not hl or hl.Parent ~= player.Character then
+        if hl then hl:Destroy() end
+        hl = Instance.new("Highlight")
+        hl.Name = "ESP_Chams_Clean"
+        hl.Adornee = player.Character
+        hl.FillTransparency = 0.4
+        hl.OutlineTransparency = 0
+        hl.Parent = player.Character
+        HighlightsCache[player] = hl
+    end
+    hl.FillColor = color
+    hl.OutlineColor = color
+    hl.Enabled = true
+end
+
+function Esp.Update(Settings, GetDisplayNameFunc)
+    for _, player in ipairs(Players:GetPlayers()) do
+        local shouldRender = shouldRenderPlayer(player, Settings)
+        
+        if not shouldRender then
+            if DrawingsCache[player] then hideDrawings(DrawingsCache[player]) end
+            if HighlightsCache[player] then HighlightsCache[player]:Destroy(); HighlightsCache[player] = nil end
+            continue
+        end
+        
+        local char = player.Character
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+        
+        if not hrp or not head then
+            if DrawingsCache[player] then hideDrawings(DrawingsCache[player]) end
+            continue
+        end
+        
+        local color = determineColor(player, Settings)
+        updateHighlight(player, color, Settings)
+        
+        if not DrawingsCache[player] then
+            DrawingsCache[player] = {
+                Tracer = createDrawing("Line", {Thickness = 1}),
+                Name = createDrawing("Text", {Size = 12, Center = true, Outline = true, Font = 2}),
+                Skeleton = {}
+            }
+        end
+        
+        local d = DrawingsCache[player]
+        local vector, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+        local headVector = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+        local legVector = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+        
+        if onScreen and headVector.Z > 0 then
+            if Settings.Tracers then
+                d.Tracer.Visible = true
+                d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                d.Tracer.To = Vector2.new(vector.X, legVector.Y)
+                d.Tracer.Color = color
+            else
+                d.Tracer.Visible = false
+            end
+            
+            if Settings.ShowName or Settings.ShowDistance then
+                d.Name.Visible = true
+                local textStr = GetDisplayNameFunc(player)
+                if Settings.ShowDistance and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude)
+                    textStr = textStr .. " [" .. dist .. "m]"
+                end
+                d.Name.Text = textStr
+                d.Name.Position = Vector2.new(vector.X, headVector.Y - 22)
+                d.Name.Color = color
+            else
+                d.Name.Visible = false
+            end
+            
+            if Settings.Skeleton then
+                local bonePairs = {}
+                if char:FindFirstChild("UpperTorso") then
+                    bonePairs = {
+                        {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+                        {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
+                        {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightUpperArm", "RightHand"},
+                        {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
+                        {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
+                    }
+                elseif char:FindFirstChild("Torso") then
+                    bonePairs = {
+                        {"Head", "Torso"},
+                        {"Torso", "Left Arm"}, {"Left Arm", "LeftHand"},
+                        {"Torso", "Right Arm"}, {"Right Arm", "RightHand"},
+                        {"Torso", "Left Leg"}, {"Left Leg", "LeftFoot"},
+                        {"Torso", "Right Leg"}, {"Right Leg", "RightFoot"}
+                    }
+                end
+                
+                for i, bone in ipairs(bonePairs) do
+                    local p1 = char:FindFirstChild(bone[1])
+                    local p2 = char:FindFirstChild(bone[2])
+                    
+                    if p1 and p2 then
+                        if not d.Skeleton[i] then d.Skeleton[i] = createDrawing("Line", {Thickness = 1}) end
+                        local line = d.Skeleton[i]
+                        local v1, vis1 = Camera:WorldToViewportPoint(p1.Position)
+                        local v2, vis2 = Camera:WorldToViewportPoint(p2.Position)
+                        
+                        if vis1 and vis2 and v1.Z > 0 and v2.Z > 0 then
+                            line.Visible = true
+                            line.From = Vector2.new(v1.X, v1.Y)
+                            line.To = Vector2.new(v2.X, v2.Y)
+                            line.Color = color
+                        else
+                            line.Visible = false
+                        end
+                    else
+                        if d.Skeleton[i] then d.Skeleton[i].Visible = false end
+                    end
+                end
+            else
+                if d.Skeleton then
+                    for _, line in pairs(d.Skeleton) do line.Visible = false end
+                end
+            end
+        else
+            hideDrawings(d)
+        end
+    end
+end
+
+return Esp
