@@ -17,6 +17,22 @@ local Fov = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll
 local MoonwalkModule = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Moonwalk.lua"))()
 local moonwalkInst = MoonwalkModule.new()
 
+-- Загрузка новых модулей: Auto Skill Check / Auto Dagger
+-- Безопасная подгрузка: если файл ещё не залит на GitHub, скрипт продолжит работать
+local function SafeLoadModule(url, name)
+    local ok, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    if not ok or type(result) ~= "table" then
+        warn("[SKV] Модуль " .. name .. " не загружен: " .. tostring(result))
+        return nil
+    end
+    return result
+end
+
+local AutoSkillCheck = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/AutoSkillCheck.lua", "AutoSkillCheck")
+local AutoDagger = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/AutoDagger.lua", "AutoDagger")
+
 local Connections = {}
 local ActiveTasks = {}
 local ActiveGenerators = {}
@@ -646,6 +662,112 @@ NextKillerLabel.LayoutOrder = 8
 NextKillerLabel.Parent = tabMisc
 Instance.new("UICorner", NextKillerLabel).CornerRadius = UDim.new(0, 6)
 
+-- Auto Tools UI (Auto Skill Check / Auto Dagger) ------------------------------
+local AutoHeader = Instance.new("TextLabel")
+AutoHeader.Size = UDim2.new(1, 0, 0, 24)
+AutoHeader.BackgroundTransparency = 1
+AutoHeader.Text = "    Auto Tools (Survivor):"
+AutoHeader.TextColor3 = Color3.fromRGB(180, 180, 200)
+AutoHeader.TextSize = 12
+AutoHeader.Font = Enum.Font.GothamBold
+AutoHeader.TextXAlignment = Enum.TextXAlignment.Left
+AutoHeader.LayoutOrder = 9
+AutoHeader.Parent = tabMisc
+
+local function CreateOptionButton(parent, label, order, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 34)
+    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.TextSize = 13
+    btn.Font = Enum.Font.Gotham
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
+    btn.Text = "    " .. label
+    btn.LayoutOrder = order
+    btn.Parent = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.MouseButton1Click:Connect(function()
+        callback(btn)
+    end)
+    return btn
+end
+
+-- Кнопка-циклер: перебирает значения из списка
+local function CreateCycleButton(parent, label, order, values, initial, onChanged)
+    local current = initial
+    local btn
+    btn = CreateOptionButton(parent, label .. ": " .. tostring(current), order, function()
+        local index = 1
+        for i, value in ipairs(values) do
+            if value == current then index = i end
+        end
+        index = index % #values + 1
+        current = values[index]
+        btn.Text = "    " .. label .. ": " .. tostring(current)
+        if onChanged then onChanged(current) end
+    end)
+    return btn
+end
+
+CreateToggle(tabMisc, "Auto Skill Check (Perfect)", "AutoSkillCheck", 10, function(state)
+    if AutoSkillCheck then AutoSkillCheck.Toggle(state, Settings) end
+end)
+
+CreateCycleButton(tabMisc, "SkillCheck режим", 11, {"Perfect", "Instant"}, Settings.SkillCheckMode, function(value)
+    Settings.SkillCheckMode = value
+end)
+
+CreateCycleButton(tabMisc, "SkillCheck ввод", 12, {"Touch", "Mouse", "Key"}, Settings.SkillCheckDispatch, function(value)
+    Settings.SkillCheckDispatch = value
+end)
+
+local SkillCheckKeyBtn = CreateOptionButton(tabMisc, "SkillCheck клавиша: " .. tostring(Settings.SkillCheckKey.Name), 13, function(btn)
+    Settings.IsBindingSkillCheckKey = true
+    btn.Text = "    SkillCheck клавиша: [нажмите клавишу...]"
+end)
+
+CreateToggle(tabMisc, "Auto Dagger (Auto Parry)", "AutoDagger", 14, function(state)
+    if AutoDagger then AutoDagger.Toggle(state, Settings) end
+end)
+
+CreateCycleButton(tabMisc, "Dagger режим", 15, {"Reactive", "Preempt", "Spam", "Chase"}, Settings.DaggerMode, function(value)
+    Settings.DaggerMode = value
+end)
+
+CreateCycleButton(tabMisc, "Dagger радиус", 16, {8, 12, 16, 20, 24, 30}, Settings.DaggerRange, function(value)
+    Settings.DaggerRange = value
+end)
+
+CreateCycleButton(tabMisc, "Dagger ввод", 17, {"Touch", "Mouse", "Key", "Tool"}, Settings.DaggerDispatch, function(value)
+    Settings.DaggerDispatch = value
+end)
+
+local DaggerKeyBtn = CreateOptionButton(tabMisc, "Dagger клавиша: " .. tostring(Settings.DaggerKey.Name), 18, function(btn)
+    Settings.IsBindingDaggerKey = true
+    btn.Text = "    Dagger клавиша: [нажмите клавишу...]"
+end)
+
+CreateToggle(tabMisc, "SkillCheck Debug (лог)", "SkillCheckDebug", 19)
+CreateToggle(tabMisc, "Dagger Debug (лог)", "DaggerDebug", 20)
+
+CreateOptionButton(tabMisc, "Probe: вывести найденные пути в консоль", 21, function()
+    if AutoSkillCheck and AutoSkillCheck.Probe then pcall(AutoSkillCheck.Probe, Settings) end
+    if AutoDagger and AutoDagger.Probe then pcall(AutoDagger.Probe, Settings) end
+end)
+
+local AutoStatsLabel = Instance.new("TextLabel")
+AutoStatsLabel.Size = UDim2.new(1, 0, 0, 34)
+AutoStatsLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+AutoStatsLabel.TextColor3 = Color3.fromRGB(170, 220, 170)
+AutoStatsLabel.TextSize = 11
+AutoStatsLabel.Font = Enum.Font.Gotham
+AutoStatsLabel.TextXAlignment = Enum.TextXAlignment.Left
+AutoStatsLabel.TextWrapped = true
+AutoStatsLabel.Text = "    Auto stats: ожидание..."
+AutoStatsLabel.LayoutOrder = 22
+AutoStatsLabel.Parent = tabMisc
+Instance.new("UICorner", AutoStatsLabel).CornerRadius = UDim.new(0, 6)
+
 -- Settings Tab UI
 CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
 
@@ -802,6 +924,10 @@ Instance.new("UICorner", ClearScriptBtn).CornerRadius = UDim.new(0, 6)
 local function FullCleanup()
     moonwalkInst:Toggle(false)
     BoostFPS.Apply(false)
+    if AutoSkillCheck then pcall(AutoSkillCheck.Cleanup) end
+    if AutoDagger then pcall(AutoDagger.Cleanup) end
+    Settings.AutoSkillCheck = false
+    Settings.AutoDagger = false
     for _, conn in ipairs(Connections) do pcall(function() conn:Disconnect() end) end
     Connections = {}
     for _, taskThread in ipairs(ActiveTasks) do pcall(function() task.cancel(taskThread) end) end
@@ -888,6 +1014,24 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
         return
     end
     
+    if Settings.IsBindingSkillCheckKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            Settings.SkillCheckKey = input.KeyCode
+            Settings.IsBindingSkillCheckKey = false
+            SkillCheckKeyBtn.Text = "    SkillCheck клавиша: " .. tostring(input.KeyCode.Name)
+        end
+        return
+    end
+
+    if Settings.IsBindingDaggerKey then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            Settings.DaggerKey = input.KeyCode
+            Settings.IsBindingDaggerKey = false
+            DaggerKeyBtn.Text = "    Dagger клавиша: " .. tostring(input.KeyCode.Name)
+        end
+        return
+    end
+
     if not gp and input.KeyCode == Settings.MenuKeyBind then
         MainFrame.Visible = not MainFrame.Visible
         QuickIcon.Visible = false
@@ -904,6 +1048,29 @@ end))
 table.insert(ActiveTasks, task.spawn(function()
     while task.wait(0.1) do
         FullBright.Update(Settings)
+    end
+end))
+
+-- Обновление статистики Auto Tools
+table.insert(ActiveTasks, task.spawn(function()
+    while task.wait(0.5) do
+        if AutoStatsLabel and AutoStatsLabel.Parent then
+            local skillStats = AutoSkillCheck and AutoSkillCheck.GetStats and AutoSkillCheck.GetStats() or nil
+            local daggerStats = AutoDagger and AutoDagger.GetStats and AutoDagger.GetStats() or nil
+            local text = "    Auto stats: "
+            if skillStats then
+                text = text .. string.format("SkillCheck: %d perfect / %d missed", skillStats.Perfect, skillStats.Missed)
+            else
+                text = text .. "SkillCheck: модуль не загружен"
+            end
+            text = text .. " | "
+            if daggerStats then
+                text = text .. string.format("Dagger: %d use / %d parry (det %d)", daggerStats.Uses, daggerStats.Success, daggerStats.Detected)
+            else
+                text = text .. "Dagger: модуль не загружен"
+            end
+            AutoStatsLabel.Text = text
+        end
     end
 end))
 
@@ -1033,19 +1200,22 @@ local function updateGeneratorProgress(generator)
 
     local remaining = math.max(0, 100 - percent)
     local eta = speed > 0 and remaining / speed or nil
-    local etaText = eta and string.format("%.1fs", eta) or "--"
-    local speedText = speed > 0 and string.format("+%.2f%%/s", speed) or "--"
-    local percentStr = string.format("[%.2f%%] Осталось: %.2f%% | Скорость: %s | Время: %s", percent, remaining, speedText, etaText)
+    local etaText = eta and string.format("%ds", math.max(0, math.floor(eta + 0.5))) or "--"
+    local speedText = speed > 0 and string.format("%.1f%%/s", speed) or "--"
+    local percentStr = string.format("%.0f%% | %s | %s", percent, speedText, etaText)
     if not billboard then
-        billboard = CreateBillboardTag(percentStr, finalColor, UDim2.new(0, 330, 0, 30), 9)
+        billboard = CreateBillboardTag(percentStr, finalColor, UDim2.new(0, 180, 0, 24), 10)
         billboard.Name, billboard.StudsOffset = "GenSKV_Tag", Vector3.new(0, 2, 0)
         billboard.Adornee = generator:FindFirstChild("defaultMaterial", true) or generator
         billboard.Parent = generator
+        billboard:SetAttribute("LastTextUpdate", now)
     else
         local lbl = billboard:FindFirstChild("SKV_Label")
-        if lbl then
+        local lastTextUpdate = billboard:GetAttribute("LastTextUpdate") or 0
+        if lbl and now - lastTextUpdate >= 0.2 then
             lbl.Text = percentStr
             lbl.TextColor3 = finalColor
+            billboard:SetAttribute("LastTextUpdate", now)
         end
     end
     return false
