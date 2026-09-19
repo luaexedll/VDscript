@@ -1,11 +1,11 @@
--- Modules/AutoSkillCheck.lua
+--sex Modules/AutoSkillCheck.lua
 -- Auto Skill Check (Perfect / Instant) для [CURE] Violence District
 --
 -- Механика игры (проверено по открытым исходникам VD-скриптов):
 --   * PlayerGui.<SkillCheckPromptGui>.Check содержит два GuiObject:
 --       Line - вращающаяся стрелка (свойство Rotation)
 --       Goal - зона попадания (свойство Rotation)
---   * Идеальное окно = Goal.Rotation + 101 ... Goal.Rotation + 115 (градусы)
+--   * Идеальное окно = Goal.Rotation + 104 ... Goal.Rotation + 115 (градусы)
 --   * Проверка активируется мобильной кнопкой PlayerGui["<Team>-mob"].Controls.action.check
 --     через VirtualInputManager:SendTouchEvent(TouchID, 0/1/2, x, y)
 --   * Instant-режим (необязательный) использует ремоуты:
@@ -32,10 +32,10 @@ local DEFAULTS = {
     SkillCheckMode = "Perfect",          -- "Perfect" | "Instant"
     SkillCheckDispatch = "Touch",        -- "Touch" | "Mouse" | "Key"
     SkillCheckKey = Enum.KeyCode.Space,  -- клавиша для режима "Key"
-    SkillCheckWindowStart = 101,         -- смещение начала идеального окна от Goal.Rotation
+    SkillCheckWindowStart = 104,         -- смещение начала идеального окна (сдвинуто чуть дальше, чтобы стрелка доходила)
     SkillCheckWindowEnd = 115,           -- смещение конца идеального окна от Goal.Rotation
     SkillCheckPrediction = true,         -- предсказывать момент входа стрелки в окно
-    SkillCheckLead = 0.02,               -- компенсация задержки кадра/пинга (сек)
+    SkillCheckLead = 0.005,              -- компенсация задержки кадра/пинга (уменьшена, чтобы не нажималось слишком рано)
     SkillCheckTeam = "Survivors",        -- "Survivors" | "Any"
     SkillCheckInstantRepair = true,      -- в Instant-режиме дополнительно дёргать RepairEvent
     SkillCheckDebug = false,
