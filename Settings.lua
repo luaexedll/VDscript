@@ -35,6 +35,11 @@ local Settings = {
     EnableFullBright = false,
     FPSBoostApplied = false,
     RemoveFog = false,
+    -- Moonwalk / Auto tools (для нового GUI)
+    MoonwalkEnabled = false,
+    AutoSkillCheck = false,
+    AutoDagger = false,
+    ShowNextKiller = true,
 }
 
 return Settings
