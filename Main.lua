@@ -35,7 +35,11 @@ Settings.DaggerKey = Enum.UserInputType.MouseButton2
 
 local Connections = {}
 local ActiveTasks = {}
+local ActiveGenerators = {}
+local ActivePallets = {}
+local GeneratorProgressCache = {}
 local LastUpdateTick = 0
+local LastFullESPRefresh = 0
 
 local ScreenGui, IconGui, IntroGui
 local NextKillerLabel
@@ -108,7 +112,69 @@ end
 
 ShowIntroAnimation()
 
-local function BuildUI()
+-- Новое GUI: сборка из SKVGui_p1..p5 (каркас newhuitype, функции наши)
+local SKVGuiP1 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p1.lua"))()
+local SKVGuiP2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p2.lua"))()
+local SKVGuiP3 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p3.lua"))()
+local SKVGuiP4 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p4.lua"))()
+local SKVGuiP5a = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p5a.lua"))()
+local SKVGuiP5b = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p5b.lua"))()
+
+local GuiCtx = {
+    Connections = Connections,
+    FOVCircle = FOVCircle,
+    moonwalkInst = moonwalkInst,
+    AutoSkillCheck = AutoSkillCheck,
+    AutoDagger = AutoDagger,
+    BoostFPS = BoostFPS,
+    isInteracting = false,
+}
+
+local function FullCleanup()
+    moonwalkInst:Toggle(false)
+    BoostFPS.Apply(false)
+    for _, conn in ipairs(Connections) do pcall(function() conn:Disconnect() end) end
+    Connections = {}
+    GuiCtx.Connections = Connections
+    for _, taskThread in ipairs(ActiveTasks) do pcall(function() task.cancel(taskThread) end) end
+    ActiveTasks = {}
+    Esp.ClearAll()
+    Esp.ClearMapESP()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            local h = p.Character:FindFirstChild("ESP_Chams_Clean")
+            if h then pcall(function() h:Destroy() end) end
+        end
+    end
+    local Map = workspace:FindFirstChild("Map")
+    if Map then
+        for _, obj in ipairs(Map:GetDescendants()) do
+            local tag = obj:FindFirstChild("GenSKV_Tag")
+            if tag then pcall(function() tag:Destroy() end) end
+            local objH = obj:FindFirstChild("SKV_ObjH")
+            if objH then pcall(function() objH:Destroy() end) end
+        end
+    end
+    pcall(function() Camera.FieldOfView = 70 end)
+    pcall(function() FOVCircle:Remove() end)
+    pcall(function() if GuiCtx.ScreenGui then GuiCtx.ScreenGui:Destroy() end end)
+    pcall(function() if ScreenGui then ScreenGui:Destroy() end end)
+    pcall(function() if IntroGui then IntroGui:Destroy() end end)
+end
+GuiCtx.FullCleanup = FullCleanup
+
+SKVGuiP1.BuildFrame(Settings, GuiCtx)
+SKVGuiP2.Build(GuiCtx)
+SKVGuiP4.Build(GuiCtx, SKVGuiP3, Settings)
+SKVGuiP5a.Build(GuiCtx, SKVGuiP3, Settings)
+SKVGuiP5b.Build(GuiCtx, SKVGuiP3, Settings)
+
+local ScreenGui = GuiCtx.ScreenGui
+local MainFrame = GuiCtx.MainFrame
+local NextKillerLabel = GuiCtx.RankLabel
+local function RefreshNicksListUI() if GuiCtx.refNicks then GuiCtx.refNicks() end end
+local function safeUpdateMenuBindText() if GuiCtx.refMenu then GuiCtx.refMenu() end end
+-- OLDGUI_DISABLED_BELOW --[[
     if ScreenGui then pcall(function() ScreenGui:Destroy() end) end
     if IconGui then pcall(function() IconGui:Destroy() end) end
 
@@ -584,6 +650,14 @@ CreateToggle(tabMisc, "FPS Boost (Оптимизация)", "FPSBoostApplied", 4
 end)
 CreateToggle(tabMisc, "Убрать туман (Remove Fog)", "RemoveFog", 5)
 
+CreateToggle(tabMisc, "Auto Skill Check (Space)", "AutoSkillCheck", 6, function(state)
+    if AutoSkillCheck then AutoSkillCheck.Toggle(state, Settings) end
+end)
+
+CreateToggle(tabMisc, "Auto Dagger/Item (RMB)", "AutoDagger", 7, function(state)
+    if AutoDagger then AutoDagger.Toggle(state, Settings) end
+end)
+
 -- Интеграция Moonwalk во вкладку Misc
 local MoonwalkToggleBtn = Instance.new("TextButton")
 MoonwalkToggleBtn.Size = UDim2.new(1, 0, 0, 36)
@@ -593,7 +667,7 @@ MoonwalkToggleBtn.TextSize = 13
 MoonwalkToggleBtn.Font = Enum.Font.Gotham
 MoonwalkToggleBtn.TextColor3 = Color3.fromRGB(240, 240, 240)
 MoonwalkToggleBtn.Text = "    Moonwalk: OFF"
-MoonwalkToggleBtn.LayoutOrder = 6
+MoonwalkToggleBtn.LayoutOrder = 8
 MoonwalkToggleBtn.Parent = tabMisc
 Instance.new("UICorner", MoonwalkToggleBtn).CornerRadius = UDim.new(0, 6)
 
@@ -607,7 +681,7 @@ end)
 local MoonwalkRow = Instance.new("Frame")
 MoonwalkRow.Size = UDim2.new(1, 0, 0, 36)
 MoonwalkRow.BackgroundTransparency = 1
-MoonwalkRow.LayoutOrder = 7
+MoonwalkRow.LayoutOrder = 9
 MoonwalkRow.Parent = tabMisc
 
 local MoonwalkBindBtn = Instance.new("TextButton")
@@ -654,115 +728,9 @@ NextKillerLabel.TextSize = 13
 NextKillerLabel.Font = Enum.Font.GothamBold
 NextKillerLabel.TextXAlignment = Enum.TextXAlignment.Left
 NextKillerLabel.Text = "    Next Killer: Calculating..."
-NextKillerLabel.LayoutOrder = 8
+NextKillerLabel.LayoutOrder = 10
 NextKillerLabel.Parent = tabMisc
 Instance.new("UICorner", NextKillerLabel).CornerRadius = UDim.new(0, 6)
-
--- Auto Tools UI (Auto Skill Check / Auto Dagger) ------------------------------
-local AutoHeader = Instance.new("TextLabel")
-AutoHeader.Size = UDim2.new(1, 0, 0, 24)
-AutoHeader.BackgroundTransparency = 1
-AutoHeader.Text = "    Auto Tools (Survivor):"
-AutoHeader.TextColor3 = Color3.fromRGB(180, 180, 200)
-AutoHeader.TextSize = 12
-AutoHeader.Font = Enum.Font.GothamBold
-AutoHeader.TextXAlignment = Enum.TextXAlignment.Left
-AutoHeader.LayoutOrder = 9
-AutoHeader.Parent = tabMisc
-
-local function CreateOptionButton(parent, label, order, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 34)
-    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.TextSize = 13
-    btn.Font = Enum.Font.Gotham
-    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
-    btn.Text = "    " .. label
-    btn.LayoutOrder = order
-    btn.Parent = parent
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    btn.MouseButton1Click:Connect(function()
-        callback(btn)
-    end)
-    return btn
-end
-
--- Кнопка-циклер: перебирает значения из списка
-local function CreateCycleButton(parent, label, order, values, initial, onChanged)
-    local current = initial
-    local btn
-    btn = CreateOptionButton(parent, label .. ": " .. tostring(current), order, function()
-        local index = 1
-        for i, value in ipairs(values) do
-            if value == current then index = i end
-        end
-        index = index % #values + 1
-        current = values[index]
-        btn.Text = "    " .. label .. ": " .. tostring(current)
-        if onChanged then onChanged(current) end
-    end)
-    return btn
-end
-
-CreateToggle(tabMisc, "Auto Skill Check (Perfect)", "AutoSkillCheck", 10, function(state)
-    if AutoSkillCheck then AutoSkillCheck.Toggle(state, Settings) end
-end)
-
-CreateCycleButton(tabMisc, "SkillCheck режим", 11, {"Perfect", "Instant"}, Settings.SkillCheckMode, function(value)
-    Settings.SkillCheckMode = value
-end)
-
-CreateCycleButton(tabMisc, "SkillCheck ввод", 12, {"Touch", "Mouse", "Key"}, Settings.SkillCheckDispatch, function(value)
-    Settings.SkillCheckDispatch = value
-end)
-
-local SkillCheckKeyBtn = CreateOptionButton(tabMisc, "SkillCheck клавиша: " .. tostring(Settings.SkillCheckKey.Name), 13, function(btn)
-    Settings.IsBindingSkillCheckKey = true
-    btn.Text = "    SkillCheck клавиша: [нажмите клавишу...]"
-end)
-
-CreateToggle(tabMisc, "Auto Dagger (Auto Parry)", "AutoDagger", 14, function(state)
-    if AutoDagger then AutoDagger.Toggle(state, Settings) end
-end)
-
-CreateCycleButton(tabMisc, "Dagger режим", 15, {"Reactive", "Preempt", "Spam", "Chase"}, Settings.DaggerMode, function(value)
-    Settings.DaggerMode = value
-end)
-
-CreateCycleButton(tabMisc, "Dagger радиус", 16, {8, 12, 16, 20, 24, 30}, Settings.DaggerRange, function(value)
-    Settings.DaggerRange = value
-end)
-
-CreateCycleButton(tabMisc, "Dagger ввод", 17, {"Touch", "Mouse", "Key", "Tool"}, Settings.DaggerDispatch, function(value)
-    Settings.DaggerDispatch = value
-end)
-
-local DaggerKeyBtn = CreateOptionButton(tabMisc, "Dagger клавиша: " .. tostring(Settings.DaggerKey.Name), 18, function(btn)
-    Settings.IsBindingDaggerKey = true
-    btn.Text = "    Dagger клавиша: [нажмите клавишу...]"
-end)
-
-CreateToggle(tabMisc, "SkillCheck Debug (лог)", "SkillCheckDebug", 19)
-CreateToggle(tabMisc, "Dagger Debug (лог)", "DaggerDebug", 20)
-
-CreateOptionButton(tabMisc, "Probe: вывести найденные пути в консоль", 21, function()
-    if AutoSkillCheck and AutoSkillCheck.Probe then pcall(AutoSkillCheck.Probe, Settings) end
-    if AutoDagger and AutoDagger.Probe then pcall(AutoDagger.Probe, Settings) end
-end)
-
-local AutoStatsLabel = Instance.new("TextLabel")
-AutoStatsLabel.Size = UDim2.new(1, 0, 0, 34)
-AutoStatsLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-AutoStatsLabel.TextColor3 = Color3.fromRGB(170, 220, 170)
-AutoStatsLabel.TextSize = 11
-AutoStatsLabel.Font = Enum.Font.Gotham
-AutoStatsLabel.TextXAlignment = Enum.TextXAlignment.Left
-AutoStatsLabel.TextWrapped = true
-AutoStatsLabel.Text = "    Auto stats: ожидание..."
-AutoStatsLabel.LayoutOrder = 22
-AutoStatsLabel.Parent = tabMisc
-Instance.new("UICorner", AutoStatsLabel).CornerRadius = UDim.new(0, 6)
 
 -- Settings Tab UI
 CreateToggle(tabSettings, "Nick Changer (FPS Saver)", "EnableNickChanger", 1)
@@ -981,8 +949,10 @@ CreditLabel2.TextWrapped = true
 CreditLabel2.LayoutOrder = 2
 CreditLabel2.Parent = tabCredits
 
--- Подключаем модуль Aim
-local fovConns = Fov.SetupInputs(Settings, AimKeyBtn)
+-- OLDGUI_END --]]
+-- Логика (без старого GUI): Fov входы без кнопки, чистка кэша, фон, рендер
+do
+local fovConns = Fov.SetupInputs(Settings, nil)
 for _, c in ipairs(fovConns) do table.insert(Connections, c) end
 
 -- Обработка выходов игроков
@@ -990,31 +960,8 @@ table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
     Esp.CleanupPlayerCache(player)
 end))
 
--- Управление биндами меню и аима
-table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp)
-    if Settings.IsBindingMenuKey then
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            Settings.MenuKeyBind = input.KeyCode
-            Settings.IsBindingMenuKey = false
-            safeUpdateMenuBindText()
-        end
-        return
-    end
-
-    if Settings.IsBindingAimKey then
-        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            Settings.AimKey = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
-            Settings.IsBindingAimKey = false
-            AimKeyBtn.Text = "    Клавиша Аима (Aim Key): " .. tostring(input.KeyCode.Name ~= "" and input.KeyCode.Name or input.UserInputType.Name)
-        end
-        return
-    end
-    
-    if not gp and input.KeyCode == Settings.MenuKeyBind then
-        MainFrame.Visible = not MainFrame.Visible
-        QuickIcon.Visible = false
-    end
-end))
+-- Управление биндами уже в новом GUI (p5b), дубль удален
+end
 
 -- Фоновые задачи (Nick Changer, FullBright)
 table.insert(ActiveTasks, task.spawn(function()
@@ -1029,7 +976,7 @@ table.insert(ActiveTasks, task.spawn(function()
     end
 end))
 
--- Вспомогательные функции для генераторов и паллет
+-- Вспомогательные функции (оригинал из normalmain)
 local function GetGameValue(obj, name)
     if not obj then return nil end
     local attr = obj:GetAttribute(name)
@@ -1056,7 +1003,7 @@ local function UpdateNextKillerLabel()
 
     local nextKiller = players[1]
     if not nextKiller then
-        NextKillerLabel.Text = "    Next Killer: Calculating..."
+        NextKillerLabel.Text = "Next: ..."
         return
     end
 
@@ -1067,36 +1014,10 @@ local function UpdateNextKillerLabel()
         "Killer"
     )
     local playerName = nextKiller == LocalPlayer and "YOU" or NameChanger.GetDisplayName(nextKiller, Settings)
-    NextKillerLabel.Text = "    Next Killer: " .. killerName .. " | " .. playerName
+    NextKillerLabel.Text = "Next: " .. killerName .. " | " .. playerName
 end
 
--- закрываю блок DISABLED выше
-
--- ESP предметов карты (генераторы/палеты) перенесено в Modules/Esp.lua (GUI/логика без изменений)
-
-table.insert(Connections, workspace.ChildAdded:Connect(function(c) 
-    if c.Name == "Map" then 
-        task.wait(1) 
-        Esp.RefreshESPMapObjects(Settings) 
-    end 
-end))
-
---[[ DUP1 START - отключен дубль RenderStepped
-
--- Главный рендер-цикл (ESP карты через Esp модуль)
-table.insert(Connections, RunService.RenderStepped:Connect(function()
-    local now2 = tick()
-    Fov.Update(Settings, FOVCircle, MainFrame)
-    if now2 - LastUpdateTick < 0.03 then return end
-    LastUpdateTick = now2
-    UpdateNextKillerLabel()
-    Esp.UpdateMapESP(Settings)
-    Esp.Update(Settings, function(p)
-        return NameChanger.GetDisplayName(p, Settings)
-    end) -- конец RenderStepped
-DUP1 END --]]
--- конец отключенного старого блока (уже закрыт выше)
--- === CORRECT TAIL (правильный Main, ESP карты в Esp.lua, GUI без изменений) ===
+-- ESP карты через модуль (1 шт, без дублей)
 table.insert(Connections, workspace.ChildAdded:Connect(function(c)
     if c.Name == "Map" then
         task.wait(1)
@@ -1115,54 +1036,4 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     end)
 end))
 Esp.RefreshESPMapObjects(Settings)
--- === OLD BLOCK DISABLED BELOW ===
--- уже закрыто выше, старый маркер отключен
---[[
-Esp.RefreshESPMapObjects(Settings)
--- старый блок выше заменен (см. верхний RenderStepped), дубль отключен
---tail-ok
---tail-ok2
---tail-ok3
-
-table.insert(Connections, RunService.RenderStepped:Connect(function()
-    local now = tick()
-    
-    -- Обновление AIM и FOV камеры через модуль
-    Fov.Update(Settings, FOVCircle, MainFrame)
-    
-    if now - LastUpdateTick < 0.03 then return end
-    LastUpdateTick = now
-    
-    UpdateNextKillerLabel() 
-    Esp.UpdateMapESP(Settings) 
-    Esp.UpdateMapESP(Settings)
-    UpdateNextKillerLabel() 
-    end
-    
-    UpdateNextKillerLabel()
-    
---
---
---
---
-    end
-    
---
---
--- 
--- 
---
-    end
-
-    Esp.UpdateMapESP(Settings)
-    -- Обновление ESP игроков через модуль
-    Esp.Update(Settings, function(p)
-        return NameChanger.GetDisplayName(p, Settings)
-    end)
-end))
---tail-ok4
---tail-ok5
-
---]]
-
-Esp.RefreshESPMapObjects(Settings)
+-- конец файла (мусор удален)
