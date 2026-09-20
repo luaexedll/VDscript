@@ -35,11 +35,7 @@ local AutoDagger = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/V
 
 local Connections = {}
 local ActiveTasks = {}
-local ActiveGenerators = {}
-local ActivePallets = {}
-local GeneratorProgressCache = {}
 local LastUpdateTick = 0
-local LastFullESPRefresh = 0
 
 local ScreenGui, IconGui, IntroGui
 local NextKillerLabel
@@ -1115,137 +1111,33 @@ local function UpdateNextKillerLabel()
     NextKillerLabel.Text = "    Next Killer: " .. killerName .. " | " .. playerName
 end
 
-local function ApplyObjectHighlight(object, color, enabled)
-    if not enabled then
-        local h = object:FindFirstChild("SKV_ObjH")
-        if h then h:Destroy() end
-        return
-    end
-    local h = object:FindFirstChild("SKV_ObjH")
-    if not h then
-        h = Instance.new("Highlight")
-        h.Name = "SKV_ObjH"
-        h.Adornee = object
-        h.FillTransparency = 0.7
-        h.OutlineTransparency = 0.2
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        h.Parent = object
-    end
-    h.FillColor = color
-    h.OutlineColor = color
-end
-
-local function CreateBillboardTag(text, color, size, textSize)
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "SKV_Tag"
-    billboard.AlwaysOnTop = true
-    billboard.Size = size or UDim2.new(0, 120, 0, 30)
-    
-    local label = Instance.new("TextLabel")
-    label.Name = "SKV_Label"
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = color
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.new(0, 0, 0)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = textSize or 10
-    label.TextWrapped = true
-    label.RichText = true 
-    label.Parent = billboard
-    return billboard
-end
-
-local function updateGeneratorProgress(generator)
-    if not generator or not generator.Parent then
-        GeneratorProgressCache[generator] = nil
-        return true
-    end
-    if not Settings.EnableGeneratorsESP then
-        local billboard = generator:FindFirstChild("GenSKV_Tag")
-        if billboard then billboard:Destroy() end
-        ApplyObjectHighlight(generator, Settings.GeneratorColor, false)
-        GeneratorProgressCache[generator] = nil
-        return false
-    end
-
-    local percent = GetGameValue(generator, "RepairProgress") or GetGameValue(generator, "Progress") or 0
-    local billboard = generator:FindFirstChild("GenSKV_Tag")
-    
-    if percent >= 100 then
-        if billboard then billboard:Destroy() end
-        ApplyObjectHighlight(generator, Settings.GeneratorColor, false)
-        GeneratorProgressCache[generator] = nil
-        return true
-    end
-
-    ApplyObjectHighlight(generator, Settings.GeneratorColor, true)
-    local cp = math.clamp(percent, 0, 100)
-    local finalColor = cp < 50 and Settings.GeneratorColor:Lerp(Color3.fromRGB(180, 180, 0), cp / 50) or Color3.fromRGB(180, 180, 0):Lerp(Color3.fromRGB(0, 150, 0), (cp - 50) / 50)
-
-    local now = tick()
-    local progressState = GeneratorProgressCache[generator]
-    local speed = 0
-    if progressState then
-        local elapsed = now - progressState.Time
-        if elapsed > 0 then
-            speed = (percent - progressState.Percent) / elapsed
-        end
-    end
-    GeneratorProgressCache[generator] = {
-        Percent = percent,
-        Time = now
-    }
-
-    local remaining = math.max(0, 100 - percent)
-    local eta = speed > 0 and remaining / speed or nil
-    local etaText = eta and string.format("%ds", math.max(0, math.floor(eta + 0.5))) or "--"
-    local speedText = speed > 0 and string.format("%.1f%%/s", speed) or "--"
-    local percentStr = string.format("%.0f%% | %s | %s", percent, speedText, etaText)
-    if not billboard then
-        billboard = CreateBillboardTag(percentStr, finalColor, UDim2.new(0, 180, 0, 24), 10)
-        billboard.Name, billboard.StudsOffset = "GenSKV_Tag", Vector3.new(0, 2, 0)
-        billboard.Adornee = generator:FindFirstChild("defaultMaterial", true) or generator
-        billboard.Parent = generator
-        billboard:SetAttribute("LastTextUpdate", now)
-    else
-        local lbl = billboard:FindFirstChild("SKV_Label")
-        local lastTextUpdate = billboard:GetAttribute("LastTextUpdate") or 0
-        if lbl and now - lastTextUpdate >= 0.2 then
-            lbl.Text = percentStr
-            lbl.TextColor3 = finalColor
-            billboard:SetAttribute("LastTextUpdate", now)
-        end
-    end
-    return false
-end
-
-local function RefreshESPMapObjects()
-    ActiveGenerators = {}
-    ActivePallets = {}
-    local Map = workspace:FindFirstChild("Map")
-    if not Map then return end
-    
-    for _, obj in ipairs(Map:GetDescendants()) do
-        if obj.Name == "Generator" then 
-            table.insert(ActiveGenerators, obj)
-            updateGeneratorProgress(obj)
-        elseif obj.Name == "Palletwrong" or obj.Name == "Pallet" then 
-            table.insert(ActivePallets, obj)
-            ApplyObjectHighlight(obj, Settings.PalletColor, Settings.EnablePalletsESP)
-        end
-    end
-end
+-- ESP предметов карты (генераторы/палеты) перенесено в Modules/Esp.lua (GUI/логика без изменений)
 
 table.insert(Connections, workspace.ChildAdded:Connect(function(c) 
     if c.Name == "Map" then 
         task.wait(1) 
-        RefreshESPMapObjects() 
+        Esp.RefreshESPMapObjects(Settings) 
     end 
 end))
 
--- Главный рендер-цикл
+-- Главный рендер-цикл (ESP карты через Esp модуль)
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    local now2 = tick()
+    Fov.Update(Settings, FOVCircle, MainFrame)
+    if now2 - LastUpdateTick < 0.03 then return end
+    LastUpdateTick = now2
+    UpdateNextKillerLabel()
+    Esp.UpdateMapESP(Settings)
+    Esp.Update(Settings, function(p)
+        return NameChanger.GetDisplayName(p, Settings)
+    end)
+end))
+Esp.RefreshESPMapObjects(Settings)
+-- старый блок выше заменен (см. верхний RenderStepped), дубль отключен
+--skip-old
+--skip-old2x
+--[[ OLD BLOCK DISABLED (перенесено в Esp модуль, оставлено закомментированным во избежание дубля)
+
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     
@@ -1255,30 +1147,33 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     if now - LastUpdateTick < 0.03 then return end
     LastUpdateTick = now
     
-    if now - LastFullESPRefresh > 5 then 
-        LastFullESPRefresh = now 
-        RefreshESPMapObjects() 
+    UpdateNextKillerLabel() 
+    Esp.UpdateMapESP(Settings) 
+    Esp.UpdateMapESP(Settings)
+    UpdateNextKillerLabel() 
     end
     
     UpdateNextKillerLabel()
     
-    for i = #ActivePallets, 1, -1 do
-        local p = ActivePallets[i]
-        if p and p.Parent then ApplyObjectHighlight(p, Settings.PalletColor, Settings.EnablePalletsESP)
-        else table.remove(ActivePallets, i) end
+--
+--
+--
+--
     end
     
-    for i = #ActiveGenerators, 1, -1 do
-        local g = ActiveGenerators[i]
-        if g and g.Parent then 
-            if updateGeneratorProgress(g) then table.remove(ActiveGenerators, i) end 
-        else table.remove(ActiveGenerators, i) end
+--
+--
+-- 
+-- 
+--
     end
 
+    Esp.UpdateMapESP(Settings)
     -- Обновление ESP игроков через модуль
     Esp.Update(Settings, function(p)
         return NameChanger.GetDisplayName(p, Settings)
     end)
 end))
+--]]
 
-RefreshESPMapObjects()
+Esp.RefreshESPMapObjects(Settings)
