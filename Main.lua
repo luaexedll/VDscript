@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Загрузка модулей (Замените URL-адреса на ваши реальные ссылки из GitHub Raw)
+-- Загрузка модулей
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NameChanger.lua"))()
@@ -17,14 +17,11 @@ local Fov = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll
 local MoonwalkModule = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Moonwalk.lua"))()
 local moonwalkInst = MoonwalkModule.new()
 
--- Загрузка новых модулей: Auto Skill Check / Auto Dagger
--- Безопасная подгрузка: если файл ещё не залит на GitHub, скрипт продолжит работать
 local function SafeLoadModule(url, name)
     local ok, result = pcall(function()
         return loadstring(game:HttpGet(url))()
     end)
     if not ok or type(result) ~= "table" then
-        warn("[SKV] Модуль " .. name .. " не загружен: " .. tostring(result))
         return nil
     end
     return result
@@ -32,6 +29,9 @@ end
 
 local AutoSkillCheck = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/AutoSkillCheck.lua", "AutoSkillCheck")
 local AutoDagger = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/AutoDagger.lua", "AutoDagger")
+
+Settings.SkillCheckKey = Enum.KeyCode.Space
+Settings.DaggerKey = Enum.UserInputType.MouseButton2
 
 local Connections = {}
 local ActiveTasks = {}
@@ -1010,24 +1010,6 @@ table.insert(Connections, UserInputService.InputBegan:Connect(function(input, gp
         return
     end
     
-    if Settings.IsBindingSkillCheckKey then
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            Settings.SkillCheckKey = input.KeyCode
-            Settings.IsBindingSkillCheckKey = false
-            SkillCheckKeyBtn.Text = "    SkillCheck клавиша: " .. tostring(input.KeyCode.Name)
-        end
-        return
-    end
-
-    if Settings.IsBindingDaggerKey then
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            Settings.DaggerKey = input.KeyCode
-            Settings.IsBindingDaggerKey = false
-            DaggerKeyBtn.Text = "    Dagger клавиша: " .. tostring(input.KeyCode.Name)
-        end
-        return
-    end
-
     if not gp and input.KeyCode == Settings.MenuKeyBind then
         MainFrame.Visible = not MainFrame.Visible
         QuickIcon.Visible = false
@@ -1044,29 +1026,6 @@ end))
 table.insert(ActiveTasks, task.spawn(function()
     while task.wait(0.1) do
         FullBright.Update(Settings)
-    end
-end))
-
--- Обновление статистики Auto Tools
-table.insert(ActiveTasks, task.spawn(function()
-    while task.wait(0.5) do
-        if AutoStatsLabel and AutoStatsLabel.Parent then
-            local skillStats = AutoSkillCheck and AutoSkillCheck.GetStats and AutoSkillCheck.GetStats() or nil
-            local daggerStats = AutoDagger and AutoDagger.GetStats and AutoDagger.GetStats() or nil
-            local text = "    Auto stats: "
-            if skillStats then
-                text = text .. string.format("SkillCheck: %d perfect / %d missed", skillStats.Perfect, skillStats.Missed)
-            else
-                text = text .. "SkillCheck: модуль не загружен"
-            end
-            text = text .. " | "
-            if daggerStats then
-                text = text .. string.format("Dagger: %d use / %d parry (det %d)", daggerStats.Uses, daggerStats.Success, daggerStats.Detected)
-            else
-                text = text .. "Dagger: модуль не загружен"
-            end
-            AutoStatsLabel.Text = text
-        end
     end
 end))
 
@@ -1111,6 +1070,8 @@ local function UpdateNextKillerLabel()
     NextKillerLabel.Text = "    Next Killer: " .. killerName .. " | " .. playerName
 end
 
+-- закрываю блок DISABLED выше
+
 -- ESP предметов карты (генераторы/палеты) перенесено в Modules/Esp.lua (GUI/логика без изменений)
 
 table.insert(Connections, workspace.ChildAdded:Connect(function(c) 
@@ -1119,6 +1080,8 @@ table.insert(Connections, workspace.ChildAdded:Connect(function(c)
         Esp.RefreshESPMapObjects(Settings) 
     end 
 end))
+
+--[[ DUP1 START - отключен дубль RenderStepped
 
 -- Главный рендер-цикл (ESP карты через Esp модуль)
 table.insert(Connections, RunService.RenderStepped:Connect(function()
@@ -1130,13 +1093,36 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     Esp.UpdateMapESP(Settings)
     Esp.Update(Settings, function(p)
         return NameChanger.GetDisplayName(p, Settings)
+    end) -- конец RenderStepped
+DUP1 END --]]
+-- конец отключенного старого блока (уже закрыт выше)
+-- === CORRECT TAIL (правильный Main, ESP карты в Esp.lua, GUI без изменений) ===
+table.insert(Connections, workspace.ChildAdded:Connect(function(c)
+    if c.Name == "Map" then
+        task.wait(1)
+        Esp.RefreshESPMapObjects(Settings)
+    end
+end))
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    local now = tick()
+    Fov.Update(Settings, FOVCircle, MainFrame)
+    if now - LastUpdateTick < 0.03 then return end
+    LastUpdateTick = now
+    UpdateNextKillerLabel()
+    Esp.UpdateMapESP(Settings)
+    Esp.Update(Settings, function(p)
+        return NameChanger.GetDisplayName(p, Settings)
     end)
 end))
 Esp.RefreshESPMapObjects(Settings)
+-- === OLD BLOCK DISABLED BELOW ===
+-- уже закрыто выше, старый маркер отключен
+--[[
+Esp.RefreshESPMapObjects(Settings)
 -- старый блок выше заменен (см. верхний RenderStepped), дубль отключен
---skip-old
---skip-old2x
---[[ OLD BLOCK DISABLED (перенесено в Esp модуль, оставлено закомментированным во избежание дубля)
+--tail-ok
+--tail-ok2
+--tail-ok3
 
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
@@ -1174,6 +1160,9 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         return NameChanger.GetDisplayName(p, Settings)
     end)
 end))
+--tail-ok4
+--tail-ok5
+
 --]]
 
 Esp.RefreshESPMapObjects(Settings)
