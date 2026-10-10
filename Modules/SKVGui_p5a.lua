@@ -41,7 +41,7 @@ Ctx.refMw = refMw
 mwB.MouseButton1Click:Connect(function() Ctx.moonwalkInst.IsWaitingForBind = true mwB.Text = "   Moonwalk bind: [press...]" end)
 Ctx.moonwalkInst.OnBindChanged = function() refMw() end
 W.Button(c2m, 88, "Moonwalk unbind", function() Ctx.moonwalkInst:ClearBind() refMw() end)
-W.Check(Ctx, c2m, 122, "Auto skillcheck", Settings.AutoSkillCheck, function(v) if Ctx.AutoSkillCheck then Ctx.AutoSkillCheck.Toggle(v, Settings) end end)
+W.Check(Ctx, c2m, 122, "Auto skillcheck", Settings.AutoSkillCheck, function(v) Settings.AutoSkillCheck = v if Ctx.AutoSkillCheck then Ctx.AutoSkillCheck.Toggle(v, Settings) end end)
 W.Check(Ctx, c2m, 146, "Auto dagger", Settings.AutoDagger, function(v) if Ctx.AutoDagger then Ctx.AutoDagger.Toggle(v, Settings) end end)
 return true
 end
