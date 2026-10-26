@@ -1,4 +1,4 @@
--- SKVGui part4 pages Visuals+Aim111
+-- SKVGui part4 pages Visuals+Aim
 local P4 = {}
 function P4.Build(Ctx, W, Settings)
 local Pages = {}
@@ -91,7 +91,15 @@ local aimB = W.Button(c2a, 158, "Aim key: ...")
 local function refAim() aimB.Text = "   Aim key: " .. tostring(Settings.AimKey.Name ~= "" and Settings.AimKey.Name or Settings.AimKey) end
 refAim()
 Ctx.refAim = refAim
-aimB.MouseButton1Click:Connect(function() Settings.IsBindingAimKey = true aimB.Text = "   Aim key: [press...]" end)
+aimB.MouseButton1Click:Connect(function()
+    if Settings.IsBindingAimKey then
+        Settings.IsBindingAimKey = false
+        aimB.Text = "   Aim key: " .. tostring(Settings.AimKey.Name ~= "" and Settings.AimKey.Name or Settings.AimKey)
+    else
+        Settings.IsBindingAimKey = true
+        aimB.Text = "   Aim key: [press...]"
+    end
+end)
 return true
 end
 return P4
