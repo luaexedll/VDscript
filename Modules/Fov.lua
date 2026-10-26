@@ -1,138 +1,170 @@
 -- Modules/Fov.lua
+-- Aim Assist + FOV circle для [CURE] Violence District
+-- Интегрировано с настройками GUI: EnableAim, AimKey, AimPartMode, Smoothness, FOVRadius, TeamCheck, WallCheck
+
 local Fov = {}
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
 local isAiming = false
+local CurrentTarget = nil
 
-function Fov.SetupInputs(Settings, AimKeyBtn)
-    local connections = {}
-    
-    table.insert(connections, UserInputService.InputBegan:Connect(function(input, gp)
-        if Settings.IsBindingAimKey then return end
-        if input.UserInputType == Settings.AimKey or (input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Settings.AimKey) then
-            isAiming = true
-        end
-    end))
+-- Части тела для каждого режима прицела
+local PART_MODES = {
+    Head   = { "Head" },
+    Arms   = { "LeftHand", "RightHand", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "Left Arm", "Right Arm" },
+    Legs   = { "LeftFoot", "RightFoot", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "Left Leg", "Right Leg" },
+    Body   = { "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso" },
+}
 
-    table.insert(connections, UserInputService.InputEnded:Connect(function(input, gp)
-        if input.UserInputType == Settings.AimKey or (input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Settings.AimKey) then
-            isAiming = false
+-- Найти часть тела у персонажа по режиму (ищет по всей иерархии, т.к. в R15/R6 части вложены)
+local function FindTargetPart(character, mode)
+    local list = PART_MODES[mode] or PART_MODES.Head
+    for _, partName in ipairs(list) do
+        local part = character:FindFirstDescendant(partName)
+        if part and part:IsA("BasePart") then
+            return part
         end
-    end))
-    
-    return connections
+    end
+    return nil
 end
 
-local function IsVisible(targetPart, Settings)
-    if not Settings.WallCheck then return true end
+-- Проверка видимости сквозь стены (Raycast)
+local function IsVisible(targetPart)
     if not LocalPlayer.Character then return false end
-    
-    local localChar = LocalPlayer.Character
     local origin = Camera.CFrame.Position
     local targetPos = targetPart.Position
     local direction = targetPos - origin
-    
+
     local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = RaycastParams.RaycastFilterType.Exclude
-    
-    local filterList = {localChar}
-    if targetPart.Parent then
-        table.insert(filterList, targetPart.Parent)
-        if targetPart.Parent.Parent and targetPart.Parent.Parent:FindFirstChild("Humanoid") then
-            table.insert(filterList, targetPart.Parent.Parent)
-        end
-    end
-    raycastParams.FilterDescendantsInstances = filterList
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = { LocalPlayer.Character, targetPart.Parent }
     raycastParams.IgnoreWater = true
-    
+
     local result = workspace:Raycast(origin, direction, raycastParams)
     if result then
+        local hit = result.Instance
+        if hit and hit:IsDescendantOf(targetPart.Parent) then
+            return true
+        end
         return false
     end
     return true
 end
 
+-- Найти ближайшую к мыши цель внутри FOV
 local function GetClosestTarget(Settings)
-    local target = nil
-    local shortestDist = Settings.FOVRadius
     local mousePos = UserInputService:GetMouseLocation()
-
-    -- Список частей тела в зависимости от выбранного режима
-    local partList = {}
-    if Settings.AimPartMode == "Arms" then
-        partList = { "LeftHand", "RightHand", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "Left Arm", "Right Arm" }
-    elseif Settings.AimPartMode == "Legs" then
-        partList = { "LeftFoot", "RightFoot", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "Left Leg", "Right Leg" }
-    elseif Settings.AimPartMode == "Body" then
-        partList = { "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso" }
-    else -- "Head"
-        partList = { "Head" }
-    end
+    local bestPart = nil
+    local bestDist = Settings.FOVRadius
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            local targetPart = nil
-
             if humanoid and humanoid.Health > 0 then
-                -- Ищем любую подходящую часть тела (FindFirstDescendant, т.к. в R15/R6 руки/ноги вложены в иерархию)
-                for _, partName in ipairs(partList) do
-                    local p = player.Character:FindFirstDescendant(partName)
-                    if p and p:IsA("BasePart") then
-                        targetPart = p
-                        break
-                    end
-                end
-            end
-
-            if humanoid and humanoid.Health > 0 and targetPart then
                 if Settings.TeamCheck and player.Team and player.Team == LocalPlayer.Team then
-                    continue
-                end
-
-                local screenPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                if onScreen and screenPoint.Z > 0 then
-                    local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
-                    if dist < shortestDist then
-                        if IsVisible(targetPart, Settings) then
-                            shortestDist = dist
-                            target = targetPart
+                    -- skip teammate
+                else
+                    local part = FindTargetPart(player.Character, Settings.AimPartMode)
+                    if part then
+                        local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen and screenPoint.Z > 0 then
+                            local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+                            if dist < bestDist then
+                                if not Settings.WallCheck or IsVisible(part) then
+                                    bestDist = dist
+                                    bestPart = part
+                                end
+                            end
                         end
                     end
                 end
             end
         end
     end
-    return target
+    return bestPart
 end
 
-local PreviousFOVState = false
+-- Подключение клавиши прицела (поддерживает KeyCode и UserInputType)
+function Fov.SetupInputs(Settings, AimKeyBtn)
+    local connections = {}
 
+    table.insert(connections, UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if Settings.IsBindingAimKey then return end
+
+        local match = false
+        if typeof(Settings.AimKey) == "EnumItem" then
+            local enumType = tostring(Settings.AimKey.EnumType)
+            if enumType == "Enum.KeyCode" and input.KeyCode == Settings.AimKey then
+                match = true
+            elseif enumType == "Enum.UserInputType" and input.UserInputType == Settings.AimKey then
+                match = true
+            end
+        end
+        if match then
+            isAiming = true
+        end
+    end))
+
+    table.insert(connections, UserInputService.InputEnded:Connect(function(input, gp)
+        if gp then return end
+        local match = false
+        if typeof(Settings.AimKey) == "EnumItem" then
+            local enumType = tostring(Settings.AimKey.EnumType)
+            if enumType == "Enum.KeyCode" and input.KeyCode == Settings.AimKey then
+                match = true
+            elseif enumType == "Enum.UserInputType" and input.UserInputType == Settings.AimKey then
+                match = true
+            end
+        end
+        if match then
+            isAiming = false
+        end
+    end))
+
+    return connections
+end
+
+-- Основной цикл (вызывается из RenderStepped в Main.lua)
 function Fov.Update(Settings, FOVCircle, MainFrame)
     local mousePos = UserInputService:GetMouseLocation()
-    
+
+    -- Camera FOV
     if Settings.EnableCameraFOV then
         Camera.FieldOfView = Settings.CameraFOVValue
-        PreviousFOVState = true
-    elseif PreviousFOVState then
-        Camera.FieldOfView = 70
-        PreviousFOVState = false
     end
 
+    -- FOV circle
     FOVCircle.Position = mousePos
     FOVCircle.Visible = Settings.EnableAim and Settings.EnableFOV and MainFrame.Visible == false
-    
+    FOVCircle.Radius = Settings.FOVRadius
+
+    -- Aim Assist
     if Settings.EnableAim and isAiming then
         local targetPart = GetClosestTarget(Settings)
         if targetPart then
+            CurrentTarget = targetPart
             local currentCFrame = Camera.CFrame
             local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
             Camera.CFrame = currentCFrame:Lerp(targetCFrame, Settings.Smoothness)
+        else
+            CurrentTarget = nil
         end
+    else
+        CurrentTarget = nil
     end
+end
+
+function Fov.GetCurrentTarget()
+    return CurrentTarget
+end
+
+function Fov.IsAiming()
+    return isAiming
 end
 
 return Fov
