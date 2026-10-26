@@ -59,24 +59,47 @@ local function GetClosestTarget(Settings)
     local target = nil
     local shortestDist = Settings.FOVRadius
     local mousePos = UserInputService:GetMouseLocation()
-    
+
+    -- Список частей тела в зависимости от выбранного режима
+    local partList = {}
+    if Settings.AimPartMode == "Arms" then
+        partList = { "LeftHand", "RightHand", "LeftArm", "RightArm" }
+    elseif Settings.AimPartMode == "Legs" then
+        partList = { "LeftLeg", "RightLeg", "LeftFoot", "RightFoot" }
+    elseif Settings.AimPartMode == "Body" then
+        partList = { "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso" }
+    else -- "Head"
+        partList = { "Head" }
+    end
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            local part = player.Character:FindFirstChild(Settings.TargetPart)
-            
-            if humanoid and humanoid.Health > 0 and part then
+            local targetPart = nil
+
+            if humanoid and humanoid.Health > 0 then
+                -- Ищем любую подходящую часть тела
+                for _, partName in ipairs(partList) do
+                    local p = player.Character:FindFirstChild(partName)
+                    if p then
+                        targetPart = p
+                        break
+                    end
+                end
+            end
+
+            if humanoid and humanoid.Health > 0 and targetPart then
                 if Settings.TeamCheck and player.Team and player.Team == LocalPlayer.Team then
                     continue
                 end
-                
-                local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
+
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                 if onScreen and screenPoint.Z > 0 then
                     local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
                     if dist < shortestDist then
-                        if IsVisible(part, Settings) then
+                        if IsVisible(targetPart, Settings) then
                             shortestDist = dist
-                            target = part
+                            target = targetPart
                         end
                     end
                 end
