@@ -87,16 +87,16 @@ local function GetClosestTarget(Settings)
             
             if humanoid and humanoid.Health > 0 and part then
                 if Settings.TeamCheck and player.Team and player.Team == LocalPlayer.Team then
-                    continue
-                end
-                
-                local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
-                if onScreen and screenPoint.Z > 0 then
-                    local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
-                    if dist < shortestDist then
-                        if IsVisible(part, Settings) then
-                            shortestDist = dist
-                            target = part
+                    -- skip teammate, do not check
+                else
+                    local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen and screenPoint.Z > 0 then
+                        local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+                        if dist < shortestDist then
+                            if IsVisible(part, Settings) then
+                                shortestDist = dist
+                                target = part
+                            end
                         end
                     end
                 end
