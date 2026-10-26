@@ -1,7 +1,7 @@
 -- Settings.lua
 local Settings = {
     MenuKeyBind = Enum.KeyCode.RightShift,
-    EnableESP = true,
+    EnableESP = false,
     Skeleton = false,
     Chams = true,
     Tracers = false,
@@ -22,7 +22,7 @@ local Settings = {
     EnableAim = false,
     AimKey = Enum.UserInputType.MouseButton2,
     IsBindingAimKey = false,
-    Smoothness = 1,
+    Smoothness = 0.25,
     AimPartMode = "Head",   -- "Head" | "Arms" | "Legs" | "Body" (часть тела для прицела)
     EnableFOV = true,
     FOVRadius = 120,
