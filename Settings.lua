@@ -1,4 +1,4 @@
--- Settings.lua1111
+-- Settings.lua
 local Settings = {
     MenuKeyBind = Enum.KeyCode.RightShift,
     EnableESP = false,
@@ -19,7 +19,7 @@ local Settings = {
     CustomNicks = {},
     
     -- Настройки Aim Assist
-    EnableAim = false,
+    EnableAim = true,
     AimKey = Enum.UserInputType.MouseButton2,
     IsBindingAimKey = false,
     Smoothness = 0.25,
