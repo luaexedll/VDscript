@@ -63,9 +63,9 @@ local function GetClosestTarget(Settings)
     -- Список частей тела в зависимости от выбранного режима
     local partList = {}
     if Settings.AimPartMode == "Arms" then
-        partList = { "LeftHand", "RightHand", "LeftArm", "RightArm" }
+        partList = { "LeftHand", "RightHand", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "Left Arm", "Right Arm" }
     elseif Settings.AimPartMode == "Legs" then
-        partList = { "LeftLeg", "RightLeg", "LeftFoot", "RightFoot" }
+        partList = { "LeftFoot", "RightFoot", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "Left Leg", "Right Leg" }
     elseif Settings.AimPartMode == "Body" then
         partList = { "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso" }
     else -- "Head"
@@ -78,10 +78,10 @@ local function GetClosestTarget(Settings)
             local targetPart = nil
 
             if humanoid and humanoid.Health > 0 then
-                -- Ищем любую подходящую часть тела
+                -- Ищем любую подходящую часть тела (FindFirstDescendant, т.к. в R15/R6 руки/ноги вложены в иерархию)
                 for _, partName in ipairs(partList) do
-                    local p = player.Character:FindFirstChild(partName)
-                    if p then
+                    local p = player.Character:FindFirstDescendant(partName)
+                    if p and p:IsA("BasePart") then
                         targetPart = p
                         break
                     end
