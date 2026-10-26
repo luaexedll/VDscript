@@ -1,4 +1,4 @@
--- SKVGui part4 pages Visuals+Aim 11111
+-- SKVGui part4 pages Visuals+Aim
 local P4 = {}
 function P4.Build(Ctx, W, Settings)
 local Pages = {}
