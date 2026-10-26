@@ -1,4 +1,4 @@
--- SKVGui part4 pages Visuals+Aim
+-- SKVGui part4 pages Visuals+Aim1111
 local P4 = {}
 function P4.Build(Ctx, W, Settings)
 local Pages = {}
@@ -72,18 +72,10 @@ W.Check(Ctx, c1a, 52, "Team check", Settings.TeamCheck, function(v) Settings.Tea
 W.Check(Ctx, c1a, 76, "Wall check", Settings.WallCheck, function(v) Settings.WallCheck = v end)
 W.Check(Ctx, c1a, 100, "Show FOV circle", Settings.EnableFOV, function(v) Settings.EnableFOV = v end)
 W.Header(c2a, "Tuning", C_ACCENT)
-local partB = W.Button(c2a, 28, "Part: " .. Settings.AimPartMode)
+local partB = W.Button(c2a, 28, "Part: " .. Settings.TargetPart)
 partB.MouseButton1Click:Connect(function()
-    if Settings.AimPartMode == "Head" then
-        Settings.AimPartMode = "Arms"
-    elseif Settings.AimPartMode == "Arms" then
-        Settings.AimPartMode = "Legs"
-    elseif Settings.AimPartMode == "Legs" then
-        Settings.AimPartMode = "Body"
-    else
-        Settings.AimPartMode = "Head"
-    end
-    partB.Text = "   Part: " .. Settings.AimPartMode
+Settings.TargetPart = (Settings.TargetPart == "Head") and "HumanoidRootPart" or "Head"
+partB.Text = "   Part: " .. Settings.TargetPart
 end)
 W.Slider(Ctx, c2a, 62, "Smoothness", 0.05, 1, Settings.Smoothness, "", function(v) Settings.Smoothness = v end)
 W.Slider(Ctx, c2a, 110, "FOV radius", 20, 400, Settings.FOVRadius, "px", function(v) Settings.FOVRadius = math.floor(v) Ctx.FOVCircle.Radius = Settings.FOVRadius end)
@@ -91,15 +83,7 @@ local aimB = W.Button(c2a, 158, "Aim key: ...")
 local function refAim() aimB.Text = "   Aim key: " .. tostring(Settings.AimKey.Name ~= "" and Settings.AimKey.Name or Settings.AimKey) end
 refAim()
 Ctx.refAim = refAim
-aimB.MouseButton1Click:Connect(function()
-    if Settings.IsBindingAimKey then
-        Settings.IsBindingAimKey = false
-        aimB.Text = "   Aim key: " .. tostring(Settings.AimKey.Name ~= "" and Settings.AimKey.Name or Settings.AimKey)
-    else
-        Settings.IsBindingAimKey = true
-        aimB.Text = "   Aim key: [press...]"
-    end
-end)
+aimB.MouseButton1Click:Connect(function() Settings.IsBindingAimKey = true aimB.Text = "   Aim key: [press...]" end)
 return true
 end
 return P4
