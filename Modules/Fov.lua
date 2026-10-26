@@ -7,26 +7,6 @@ local LocalPlayer = Players.LocalPlayer
 
 local isAiming = false
 
--- Части тела для каждого режима (имена в Roblox R15/R6)
-local PART_MODES = {
-    Head   = { "Head" },
-    Arms   = { "LeftHand", "RightHand", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "Left Arm", "Right Arm" },
-    Legs   = { "LeftFoot", "RightFoot", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "Left Leg", "Right Leg" },
-    Body   = { "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso" },
-}
-
--- Найти часть тела у персонажа по режиму (ищет по всей иерархии, т.к. в R15/R6 части вложены)
-local function FindTargetPart(character, mode)
-    local list = PART_MODES[mode] or PART_MODES.Head
-    for _, partName in ipairs(list) do
-        local part = character:FindFirstDescendant(partName)
-        if part and part:IsA("BasePart") then
-            return part
-        end
-    end
-    return nil
-end
-
 function Fov.SetupInputs(Settings, AimKeyBtn)
     local connections = {}
     
@@ -83,20 +63,20 @@ local function GetClosestTarget(Settings)
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            local part = FindTargetPart(player.Character, Settings.AimPartMode)
+            local part = player.Character:FindFirstChild(Settings.TargetPart)
             
             if humanoid and humanoid.Health > 0 and part then
                 if Settings.TeamCheck and player.Team and player.Team == LocalPlayer.Team then
-                    -- skip teammate, do not check
-                else
-                    local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    if onScreen and screenPoint.Z > 0 then
-                        local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
-                        if dist < shortestDist then
-                            if IsVisible(part, Settings) then
-                                shortestDist = dist
-                                target = part
-                            end
+                    continue
+                end
+                
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen and screenPoint.Z > 0 then
+                    local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+                    if dist < shortestDist then
+                        if IsVisible(part, Settings) then
+                            shortestDist = dist
+                            target = part
                         end
                     end
                 end
