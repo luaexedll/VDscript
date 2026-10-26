@@ -19,11 +19,11 @@ local Settings = {
     CustomNicks = {},
     
     -- Настройки Aim Assist
-    EnableAim = true,
+    EnableAim = false,
     AimKey = Enum.UserInputType.MouseButton2,
     IsBindingAimKey = false,
     Smoothness = 0.25,
-    AimPartMode = "Head",   -- "Head" | "Arms" | "Legs" | "Body" (часть тела для прицела)
+    TargetPart = "Head",
     EnableFOV = true,
     FOVRadius = 120,
     TeamCheck = false,
