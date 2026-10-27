@@ -1,4 +1,4 @@
--- Main.lua
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Загрузка модулей
+-- лоад модулей
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NameChanger.lua"))()
@@ -112,7 +112,7 @@ end
 
 ShowIntroAnimation()
 
--- Новое GUI: сборка из SKVGui_p1..p5 (каркас newhuitype, функции наши)
+-- лоад гуи
 local SKVGuiP1 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p1.lua"))()
 local SKVGuiP2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p2.lua"))()
 local SKVGuiP3 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p3.lua"))()
@@ -179,20 +179,16 @@ local NextKillerLabel = GuiCtx.RankLabel
 local function RefreshNicksListUI() if GuiCtx.refNicks then GuiCtx.refNicks() end end
 local function safeUpdateMenuBindText() if GuiCtx.refMenu then GuiCtx.refMenu() end end
 
--- Логика (без старого GUI): Fov входы без кнопки, чистка кэша, фон, рендер
 do
 local fovConns = Fov.SetupInputs(Settings, nil)
 for _, c in ipairs(fovConns) do table.insert(Connections, c) end
 
--- Обработка выходов игроков
 table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
     Esp.CleanupPlayerCache(player)
 end))
 
--- Управление биндами уже в новом GUI (p5b), дубль удален
 end
 
--- Фоновые задачи (Nick Changer, FullBright)
 table.insert(ActiveTasks, task.spawn(function()
     while task.wait(0.5) do
         NameChanger.Run(Settings)
@@ -205,7 +201,6 @@ table.insert(ActiveTasks, task.spawn(function()
     end
 end))
 
--- Вспомогательные функции (оригинал из normalmain)
 local function GetGameValue(obj, name)
     if not obj then return nil end
     local attr = obj:GetAttribute(name)
@@ -253,6 +248,10 @@ table.insert(Connections, workspace.ChildAdded:Connect(function(c)
         Esp.RefreshESPMapObjects(Settings)
     end
 end))
+table.insert(Connections, workspace.Map.ChildAdded:Connect(function(child)
+    task.wait(0.2)
+    Esp.RefreshESPMapObjects(Settings)
+end))
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     Fov.Update(Settings, FOVCircle, MainFrame)
@@ -265,4 +264,3 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     end)
 end))
 Esp.RefreshESPMapObjects(Settings)
--- конец файла (мусор удален)
