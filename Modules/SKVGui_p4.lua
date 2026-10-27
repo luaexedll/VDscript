@@ -1,4 +1,4 @@
--- SKVGui part4 pages Visuals+Aim1111
+-- SKVGui part4 pages Visuals+Aim
 local P4 = {}
 function P4.Build(Ctx, W, Settings)
 local Pages = {}
@@ -59,6 +59,8 @@ W.Check(Ctx, c1v, 148, "Show distance", Settings.ShowDistance, function(v) Setti
 W.Header(c2v, "Map ESP", C_ACCENT)
 W.Check(Ctx, c2v, 28, "Generator ESP", Settings.EnableGeneratorsESP, function(v) Settings.EnableGeneratorsESP = v end)
 W.Check(Ctx, c2v, 52, "Pallet ESP", Settings.EnablePalletsESP, function(v) Settings.EnablePalletsESP = v end)
+W.Check(Ctx, c2v, 76, "Bear Traps ESP", Settings.EnableBearTrapsESP, function(v) Settings.EnableBearTrapsESP = v end)
+W.Check(Ctx, c2v, 100, "Pumpkins ESP", Settings.EnablePumpkinsESP, function(v) Settings.EnablePumpkinsESP = v end)
 W.Header(c2v, "Mode", C_ACCENT)
 local roleB = W.Button(c2v, 110, "Mode: " .. (Settings.RoleLogic == "EnemiesOnly" and "Enemies Only" or "All Players"))
 roleB.MouseButton1Click:Connect(function()
