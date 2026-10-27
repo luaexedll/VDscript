@@ -6,9 +6,11 @@ local LocalPlayer = Players.LocalPlayer
 
 local DrawingsCache = {}
 local HighlightsCache = {}
--- === ESP предметов карты (генераторы / палеты), перенесено из Main.lua без изменений логики ===
+-- === ESP предметов карты (генераторы / палеты / капканы / тыквы) ===
 local ActiveGenerators = {}
 local ActivePallets = {}
+local ActiveBearTraps = {}
+local ActivePumpkins = {}
 local GeneratorProgressCache = {}
 local LastFullESPRefresh = 0
 
@@ -122,6 +124,8 @@ end
 function Esp.RefreshESPMapObjects(Settings)
     ActiveGenerators = {}
     ActivePallets = {}
+    ActiveBearTraps = {}
+    ActivePumpkins = {}
     local Map = workspace:FindFirstChild("Map")
     if not Map then return end
     for _, obj in ipairs(Map:GetDescendants()) do
@@ -131,6 +135,12 @@ function Esp.RefreshESPMapObjects(Settings)
         elseif obj.Name == "Palletwrong" or obj.Name == "Pallet" then
             table.insert(ActivePallets, obj)
             ApplyObjectHighlight(obj, Settings.PalletColor, Settings.EnablePalletsESP)
+        elseif obj.Name == "BearTrap" then
+            table.insert(ActiveBearTraps, obj)
+            ApplyObjectHighlight(obj, Settings.BearTrapColor, Settings.EnableBearTrapsESP)
+        elseif string.sub(obj.Name, 1, 7) == "Pumpkin" then
+            table.insert(ActivePumpkins, obj)
+            ApplyObjectHighlight(obj, Settings.PumpkinColor, Settings.EnablePumpkinsESP)
         end
     end
 end
@@ -152,6 +162,16 @@ function Esp.UpdateMapESP(Settings)
             if updateGeneratorProgress(g, Settings) then table.remove(ActiveGenerators, i) end
         else table.remove(ActiveGenerators, i) end
     end
+    for i = #ActiveBearTraps, 1, -1 do
+        local b = ActiveBearTraps[i]
+        if b and b.Parent then ApplyObjectHighlight(b, Settings.BearTrapColor, Settings.EnableBearTrapsESP)
+        else table.remove(ActiveBearTraps, i) end
+    end
+    for i = #ActivePumpkins, 1, -1 do
+        local p = ActivePumpkins[i]
+        if p and p.Parent then ApplyObjectHighlight(p, Settings.PumpkinColor, Settings.EnablePumpkinsESP)
+        else table.remove(ActivePumpkins, i) end
+    end
 end
 
 function Esp.ClearMapESP()
@@ -165,8 +185,16 @@ function Esp.ClearMapESP()
     for _, p in ipairs(ActivePallets) do
         if p and p.Parent then ApplyObjectHighlight(p, nil, false) end
     end
+    for _, b in ipairs(ActiveBearTraps) do
+        if b and b.Parent then ApplyObjectHighlight(b, nil, false) end
+    end
+    for _, p in ipairs(ActivePumpkins) do
+        if p and p.Parent then ApplyObjectHighlight(p, nil, false) end
+    end
     ActiveGenerators = {}
     ActivePallets = {}
+    ActiveBearTraps = {}
+    ActivePumpkins = {}
     GeneratorProgressCache = {}
 end
 
