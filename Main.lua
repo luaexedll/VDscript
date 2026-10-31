@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- лоад модулей
+-- Р»РѕР°Рґ РјРѕРґСѓР»РµР№
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NameChanger.lua"))()
@@ -68,7 +68,7 @@ local function ProtectGui(gui)
     end
 end
 
--- Анимация загрузки
+-- РђРЅРёРјР°С†РёСЏ Р·Р°РіСЂСѓР·РєРё
 local function ShowIntroAnimation()
     IntroGui = Instance.new("ScreenGui")
     IntroGui.Name = "SKV_IntroGui"
@@ -112,7 +112,7 @@ end
 
 ShowIntroAnimation()
 
--- лоад гуи
+-- Р»РѕР°Рґ РіСѓРё
 local SKVGuiP1 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p1.lua"))()
 local SKVGuiP2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p2.lua"))()
 local SKVGuiP3 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p3.lua"))()
@@ -241,16 +241,13 @@ local function UpdateNextKillerLabel()
     NextKillerLabel.Text = "Next: " .. killerName .. " | " .. playerName
 end
 
--- ESP карты через модуль (1 шт, без дублей)
+-- ESP РєР°СЂС‚С‹ С‡РµСЂРµР· РјРѕРґСѓР»СЊ (1 С€С‚, Р±РµР· РґСѓР±Р»РµР№)
 table.insert(Connections, workspace.ChildAdded:Connect(function(c)
     if c.Name == "Map" then
         task.wait(1)
         Esp.RefreshESPMapObjects(Settings)
     end
 end))
-table.insert(Connections, workspace.Map.ChildAdded:Connect(function(child)
-    task.wait(0.2)
-    Esp.RefreshESPMapObjects(Settings)
 end))
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
