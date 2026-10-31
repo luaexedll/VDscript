@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Р»РѕР°Рґ РјРѕРґСѓР»РµР№
+-- Р»РѕР°Рґ РјРѕРґСѓР»РµР№ 11111
 local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
 local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
 local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NameChanger.lua"))()
@@ -70,44 +70,102 @@ end
 
 -- РђРЅРёРјР°С†РёСЏ Р·Р°РіСЂСѓР·РєРё
 local function ShowIntroAnimation()
-    IntroGui = Instance.new("ScreenGui")
-    IntroGui.Name = "SKV_IntroGui"
-    IntroGui.ResetOnSpawn = false
-    ProtectGui(IntroGui)
+	IntroGui = Instance.new("ScreenGui")
+	IntroGui.Name = "SKV_IntroGui"
+	IntroGui.ResetOnSpawn = false
+	ProtectGui(IntroGui)
 
-    local IntroFrame = Instance.new("Frame")
-    IntroFrame.Size = UDim2.new(0, 300, 0, 70)
-    IntroFrame.Position = UDim2.new(0.5, -150, 0.85, 0)
-    IntroFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-    IntroFrame.BackgroundTransparency = 1
-    IntroFrame.BorderSizePixel = 0
-    IntroFrame.Parent = IntroGui
+	local Background = Instance.new("Frame")
+	Background.Size = UDim2.new(1, 0, 1, 0)
+	Background.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
+	Background.BackgroundTransparency = 0
+	Background.BorderSizePixel = 0
+	Background.Parent = IntroGui
 
-    local IntroCorner = Instance.new("UICorner")
-    IntroCorner.CornerRadius = UDim.new(0, 8)
-    IntroCorner.Parent = IntroFrame
+	local Glow = Instance.new("Frame")
+	Glow.Size = UDim2.new(0, 260, 0, 260)
+	Glow.Position = UDim2.new(0.5, -130, 0.5, -130)
+	Glow.BackgroundColor3 = Color3.fromRGB(50, 120, 255)
+	Glow.BackgroundTransparency = 0.5
+	Glow.BorderSizePixel = 0
+	Glow.ZIndex = 0
+	Glow.Parent = Background
 
-    local IntroLabel = Instance.new("TextLabel")
-    IntroLabel.Size = UDim2.new(1, 0, 1, 0)
-    IntroLabel.BackgroundTransparency = 1
-    IntroLabel.Text = "SKV by takeushi"
-    IntroLabel.TextColor3 = Color3.fromRGB(50, 120, 255)
-    IntroLabel.TextTransparency = 1
-    IntroLabel.TextSize = 16
-    IntroLabel.Font = Enum.Font.GothamBold
-    IntroLabel.Parent = IntroFrame
+	local GlowCorner = Instance.new("UICorner")
+	GlowCorner.CornerRadius = UDim.new(1, 0)
+	GlowCorner.Parent = Glow
 
-    TweenService:Create(IntroFrame, TweenInfo.new(0.6), {BackgroundTransparency = 0.15}):Play()
-    TweenService:Create(IntroLabel, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
+	local Ring = Instance.new("Frame")
+	Ring.Size = UDim2.new(0, 240, 0, 240)
+	Ring.Position = UDim2.new(0.5, -120, 0.5, -120)
+	Ring.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Ring.BackgroundTransparency = 0.25
+	Ring.BorderSizePixel = 0
+	Ring.ZIndex = 1
+	Ring.Parent = Background
 
-    task.delay(2.2, function()
-        pcall(function()
-            TweenService:Create(IntroFrame, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
-            TweenService:Create(IntroLabel, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
-            task.wait(0.6)
-            IntroGui:Destroy()
-        end)
-    end)
+	local RingCorner = Instance.new("UICorner")
+	RingCorner.CornerRadius = UDim.new(1, 0)
+	RingCorner.Parent = Ring
+
+	local RingStroke = Instance.new("UIStroke")
+	RingStroke.Color = Color3.fromRGB(255, 255, 255)
+	RingStroke.Thickness = 3
+	RingStroke.Parent = Ring
+
+	local Logo = Instance.new("ImageLabel")
+	Logo.Size = UDim2.new(0, 120, 0, 120)
+	Logo.Position = UDim2.new(0.5, -60, 0.5, -60)
+	Logo.BackgroundTransparency = 1
+	Logo.Image = "rbxassetid://1316045217"
+	Logo.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	Logo.ZIndex = 2
+	Logo.Parent = Background
+
+	local LoadingLabel = Instance.new("TextLabel")
+	LoadingLabel.Size = UDim2.new(1, 0, 0, 24)
+	LoadingLabel.BackgroundTransparency = 1
+	LoadingLabel.Text = "SKV"
+	LoadingLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	LoadingLabel.TextSize = 28
+	LoadingLabel.TextXAlignment = Enum.TextXAlignment.Center
+	LoadingLabel.Font = Enum.Font.GothamBold
+	LoadingLabel.ZIndex = 2
+	LoadingLabel.Parent = Background
+
+	local Bar = Instance.new("Frame")
+	Bar.Size = UDim2.new(0, 200, 0, 5)
+	Bar.Position = UDim2.new(0.5, -100, 0.5, 130)
+	Bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Bar.BackgroundTransparency = 0.5
+	Bar.ZIndex = 2
+	Bar.Parent = Background
+
+	local fadeIn = TweenService:Create(Background, TweenInfo.new(0.8, Enum.EasingStyle.Out, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+	fadeIn:Play()
+
+	TweenService:Create(Logo, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {BackgroundTransparency = 0}):Play()
+
+	local ringSpin = TweenService:Create(Ring, TweenInfo.new(2.0, Enum.EasingStyle.Linear), {Rotation = 720})
+	ringSpin.Completed:Connect(function()
+		ringSpin:Play()
+	end)
+	ringSpin:Play()
+
+	local barTween = TweenService:Create(Bar, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Size = UDim2.new(0.8, 0, 0, 5)})
+	barTween.Completed:Connect(function()
+		barTween:Play()
+	end)
+	barTween:Play()
+
+	task.delay(2.5, function()
+		task.spawn(function()
+			local fadeOut = TweenService:Create(Background, TweenInfo.new(0.5, Enum.EasingStyle.In, Enum.EasingDirection.In), {BackgroundTransparency = 1})
+			fadeOut:Play()
+			task.wait(0.5)
+			IntroGui:Destroy()
+		end)
+	end)
 end
 
 ShowIntroAnimation()
