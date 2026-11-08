@@ -1,4 +1,4 @@
--- SKVGui part5a colors+misc
+-- SKVGui part5a colors+miscsss
 local P5a = {}
 function P5a.Build(Ctx, W, Settings)
 local C_MUTED = Ctx.C_MUTED
@@ -20,6 +20,8 @@ colB(c1c, 28, "Killer color", "KillerColor")
 colB(c1c, 62, "Survivor color", "SurvivorColor")
 colB(c1c, 96, "Generator color", "GeneratorColor")
 colB(c1c, 130, "Pallet color", "PalletColor")
+colB(c1c, 164, "Bear trap color", "BearTrapColor")
+colB(c1c, 198, "Pumpkin color", "PumpkinColor")
 W.Header(c2c, "Info", C_ACCENT)
 local c1m, c2m = Cols("Misc")
 W.Header(c1m, "World", C_ACCENT)
