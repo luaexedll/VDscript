@@ -253,6 +253,14 @@ table.insert(Connections, workspace.ChildAdded:Connect(function(c)
         Esp.RefreshESPMapObjects(Settings)
     end
 end))
+table.insert(Connections, workspace.DescendantAdded:Connect(function(c)
+    local name = string.lower(c.Name)
+    if string.find(name, "trap") or string.find(name, "pumpkin") or string.find(name, "тыква") or c.Name == "Generator" or c.Name == "Pallet" then
+        task.delay(0.2, function()
+            Esp.RefreshESPMapObjects(Settings)
+        end)
+    end
+end))
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     Fov.Update(Settings, FOVCircle, MainFrame)
