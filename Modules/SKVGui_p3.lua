@@ -1,9 +1,8 @@
 -- SKVGui part3 widgets
 local P3 = {}
-function P3.Header(parent, text, C_ACCENT, yPos)
+function P3.Header(parent, text, C_ACCENT)
 local l = Instance.new("TextLabel", parent)
 l.Size = UDim2.new(1, 0, 0, 22)
-if yPos then l.Position = UDim2.new(0, 0, 0, yPos) end
 l.BackgroundTransparency = 1
 l.Font = Enum.Font.GothamBold
 l.Text = text
