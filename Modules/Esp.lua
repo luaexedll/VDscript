@@ -1,212 +1,20 @@
--- Main.lua
+-- Modules/Esp.lua
+local Esp = {}
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- Загрузка модулей
-local Settings = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Settings.lua"))()
-local Esp = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Esp.lua"))()
-local NameChanger = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/NameChanger.lua"))()
-local BoostFPS = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/BoostFPS.lua"))()
-local FullBright = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/FullBright.lua"))()
-local Fov = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Fov.lua"))()
-local MoonwalkModule = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/Moonwalk.lua"))()
-local moonwalkInst = MoonwalkModule.new()
-
-local function SafeLoadModule(url, name)
-    local ok, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if not ok or type(result) ~= "table" then
-        return nil
-    end
-    return result
-end
-
-local AutoSkillCheck = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/AutoSkillCheck.lua", "AutoSkillCheck")
-local AutoDagger = SafeLoadModule("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/AutoDagger.lua", "AutoDagger")
-
-Settings.SkillCheckKey = Enum.KeyCode.Space
-Settings.DaggerKey = Enum.UserInputType.MouseButton2
-
-local Connections = {}
-local ActiveTasks = {}
+local DrawingsCache = {}
+local HighlightsCache = {}
+-- === ESP предметов карты (генераторы / палеты / капканы / тыквы) ===
 local ActiveGenerators = {}
 local ActivePallets = {}
+local ActiveBearTraps = {}
+local ActivePumpkins = {}
 local GeneratorProgressCache = {}
-local LastUpdateTick = 0
 local LastFullESPRefresh = 0
 
-local ScreenGui, IconGui, IntroGui
-local NextKillerLabel
-
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Filled = false
-FOVCircle.Thickness = 1.5
-FOVCircle.Color = Color3.fromRGB(50, 120, 255)
-FOVCircle.NumSides = 64
-FOVCircle.Radius = Settings.FOVRadius
-
-local function ProtectGui(gui)
-    pcall(function()
-        if syn and syn.protect_gui then
-            syn.protect_gui(gui)
-            gui.Parent = CoreGui
-        elseif gethui then
-            gui.Parent = gethui()
-        else
-            gui.Parent = CoreGui
-        end
-    end)
-    if not gui.Parent then
-        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-end
-
--- Анимация загрузки
-local function ShowIntroAnimation()
-    IntroGui = Instance.new("ScreenGui")
-    IntroGui.Name = "SKV_IntroGui"
-    IntroGui.ResetOnSpawn = false
-    ProtectGui(IntroGui)
-
-    local IntroFrame = Instance.new("Frame")
-    IntroFrame.Size = UDim2.new(0, 300, 0, 70)
-    IntroFrame.Position = UDim2.new(0.5, -150, 0.85, 0)
-    IntroFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-    IntroFrame.BackgroundTransparency = 1
-    IntroFrame.BorderSizePixel = 0
-    IntroFrame.Parent = IntroGui
-
-    local IntroCorner = Instance.new("UICorner")
-    IntroCorner.CornerRadius = UDim.new(0, 8)
-    IntroCorner.Parent = IntroFrame
-
-    local IntroLabel = Instance.new("TextLabel")
-    IntroLabel.Size = UDim2.new(1, 0, 1, 0)
-    IntroLabel.BackgroundTransparency = 1
-    IntroLabel.Text = "SKV by takeushi"
-    IntroLabel.TextColor3 = Color3.fromRGB(50, 120, 255)
-    IntroLabel.TextTransparency = 1
-    IntroLabel.TextSize = 16
-    IntroLabel.Font = Enum.Font.GothamBold
-    IntroLabel.Parent = IntroFrame
-
-    TweenService:Create(IntroFrame, TweenInfo.new(0.6), {BackgroundTransparency = 0.15}):Play()
-    TweenService:Create(IntroLabel, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
-
-    task.delay(2.2, function()
-        pcall(function()
-            TweenService:Create(IntroFrame, TweenInfo.new(0.6), {BackgroundTransparency = 1}):Play()
-            TweenService:Create(IntroLabel, TweenInfo.new(0.6), {TextTransparency = 1}):Play()
-            task.wait(0.6)
-            IntroGui:Destroy()
-        end)
-    end)
-end
-
-ShowIntroAnimation()
-
--- Новое GUI: сборка из SKVGui_p1..p5 (каркас newhuitype, функции наши)
-local SKVGuiP1 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p1.lua"))()
-local SKVGuiP2 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p2.lua"))()
-local SKVGuiP3 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p3.lua"))()
-local SKVGuiP4 = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p4.lua"))()
-local SKVGuiP5a = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p5a.lua"))()
-local SKVGuiP5b = loadstring(game:HttpGet("https://raw.githubusercontent.com/luaexedll/VDscript/refs/heads/main/Modules/SKVGui_p5b.lua"))()
-
-local GuiCtx = {
-    Connections = Connections,
-    FOVCircle = FOVCircle,
-    moonwalkInst = moonwalkInst,
-    AutoSkillCheck = AutoSkillCheck,
-    AutoDagger = AutoDagger,
-    BoostFPS = BoostFPS,
-    isInteracting = false,
-}
-
-local function FullCleanup()
-    moonwalkInst:Toggle(false)
-    BoostFPS.Apply(false)
-    if AutoSkillCheck then pcall(AutoSkillCheck.Cleanup) end
-    if AutoDagger then pcall(AutoDagger.Cleanup) end
-    Settings.AutoSkillCheck = false
-    Settings.AutoDagger = false
-    for _, conn in ipairs(Connections) do pcall(function() conn:Disconnect() end) end
-    Connections = {}
-    GuiCtx.Connections = Connections
-    for _, taskThread in ipairs(ActiveTasks) do pcall(function() task.cancel(taskThread) end) end
-    ActiveTasks = {}
-    Esp.ClearAll()
-    Esp.ClearMapESP()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character then
-            local h = p.Character:FindFirstChild("ESP_Chams_Clean")
-            if h then pcall(function() h:Destroy() end) end
-        end
-    end
-    local Map = workspace:FindFirstChild("Map")
-    if Map then
-        for _, obj in ipairs(Map:GetDescendants()) do
-            local tag = obj:FindFirstChild("GenSKV_Tag")
-            if tag then pcall(function() tag:Destroy() end) end
-            local objH = obj:FindFirstChild("SKV_ObjH")
-            if objH then pcall(function() objH:Destroy() end) end
-        end
-    end
-    pcall(function() Camera.FieldOfView = 70 end)
-    pcall(function() FOVCircle:Remove() end)
-    pcall(function() if GuiCtx.ScreenGui then GuiCtx.ScreenGui:Destroy() end end)
-    pcall(function() if ScreenGui then ScreenGui:Destroy() end end)
-    pcall(function() if IntroGui then IntroGui:Destroy() end end)
-end
-GuiCtx.FullCleanup = FullCleanup
-
-SKVGuiP1.BuildFrame(Settings, GuiCtx)
-SKVGuiP2.Build(GuiCtx)
-SKVGuiP4.Build(GuiCtx, SKVGuiP3, Settings)
-SKVGuiP5a.Build(GuiCtx, SKVGuiP3, Settings)
-SKVGuiP5b.Build(GuiCtx, SKVGuiP3, Settings)
-
-local ScreenGui = GuiCtx.ScreenGui
-local MainFrame = GuiCtx.MainFrame
-local NextKillerLabel = GuiCtx.RankLabel
-local function RefreshNicksListUI() if GuiCtx.refNicks then GuiCtx.refNicks() end end
-local function safeUpdateMenuBindText() if GuiCtx.refMenu then GuiCtx.refMenu() end end
-
--- Логика (без старого GUI): Fov входы без кнопки, чистка кэша, фон, рендер
-do
-local fovConns = Fov.SetupInputs(Settings, nil)
-for _, c in ipairs(fovConns) do table.insert(Connections, c) end
-
--- Обработка выходов игроков
-table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
-    Esp.CleanupPlayerCache(player)
-end))
-
--- Управление биндами уже в новом GUI (p5b), дубль удален
-end
-
--- Фоновые задачи (Nick Changer, FullBright)
-table.insert(ActiveTasks, task.spawn(function()
-    while task.wait(0.5) do
-        NameChanger.Run(Settings)
-    end
-end))
-
-table.insert(ActiveTasks, task.spawn(function()
-    while task.wait(0.1) do
-        FullBright.Update(Settings)
-    end
-end))
-
--- Вспомогательные функции (оригинал из normalmain)
-local function GetGameValue(obj, name)
+local function GetMapValue(obj, name)
     if not obj then return nil end
     local attr = obj:GetAttribute(name)
     if attr ~= nil then return attr end
@@ -218,51 +26,385 @@ local function GetGameValue(obj, name)
     return nil
 end
 
-local function UpdateNextKillerLabel()
-    if not NextKillerLabel or not NextKillerLabel.Parent then return end
-
-    local players = Players:GetPlayers()
-    table.sort(players, function(a, b)
-        local aAllowed = GetGameValue(a, "AllowKiller") or GetGameValue(a, "CanBeKiller") or false
-        local bAllowed = GetGameValue(b, "AllowKiller") or GetGameValue(b, "CanBeKiller") or false
-        if aAllowed ~= bAllowed then return aAllowed == true end
-        return (GetGameValue(a, "KillerChance") or GetGameValue(a, "Chance") or 0) >
-            (GetGameValue(b, "KillerChance") or GetGameValue(b, "Chance") or 0)
-    end)
-
-    local nextKiller = players[1]
-    if not nextKiller then
-        NextKillerLabel.Text = "    Next Killer: Calculating..."
+local function ApplyObjectHighlight(object, color, enabled)
+    if not enabled then
+        local h = object:FindFirstChild("SKV_ObjH")
+        if h then h:Destroy() end
         return
     end
-
-    local killerName = tostring(
-        GetGameValue(nextKiller, "SelectedKiller") or
-        GetGameValue(nextKiller, "Killer") or
-        GetGameValue(nextKiller, "Role") or
-        "Killer"
-    )
-    local playerName = nextKiller == LocalPlayer and "YOU" or NameChanger.GetDisplayName(nextKiller, Settings)
-    NextKillerLabel.Text = "Next: " .. killerName .. " | " .. playerName
+    local h = object:FindFirstChild("SKV_ObjH")
+    if not h then
+        h = Instance.new("Highlight")
+        h.Name = "SKV_ObjH"
+        h.Adornee = object
+        h.FillTransparency = 0.7
+        h.OutlineTransparency = 0.2
+        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        h.Parent = object
+    end
+    h.FillColor = color
+    h.OutlineColor = color
 end
 
--- ESP карты через модуль (1 шт, без дублей)
-table.insert(Connections, workspace.ChildAdded:Connect(function(c)
-    if c.Name == "Map" then
-        task.wait(1)
+local function CreateBillboardTag(text, color, size, textSize)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "SKV_Tag"
+    billboard.AlwaysOnTop = true
+    billboard.Size = size or UDim2.new(0, 120, 0, 30)
+    local label = Instance.new("TextLabel")
+    label.Name = "SKV_Label"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.new(0, 0, 0)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = textSize or 10
+    label.TextWrapped = true
+    label.RichText = true
+    label.Parent = billboard
+    return billboard
+end
+
+local function updateGeneratorProgress(generator, Settings)
+    if not generator or not generator.Parent then
+        GeneratorProgressCache[generator] = nil
+        return true
+    end
+    if not Settings.EnableGeneratorsESP then
+        local billboard = generator:FindFirstChild("GenSKV_Tag")
+        if billboard then billboard:Destroy() end
+        ApplyObjectHighlight(generator, Settings.GeneratorColor, false)
+        GeneratorProgressCache[generator] = nil
+        return false
+    end
+    local percent = GetMapValue(generator, "RepairProgress") or GetMapValue(generator, "Progress") or 0
+    local billboard = generator:FindFirstChild("GenSKV_Tag")
+    if percent >= 100 then
+        if billboard then billboard:Destroy() end
+        ApplyObjectHighlight(generator, Settings.GeneratorColor, false)
+        GeneratorProgressCache[generator] = nil
+        return true
+    end
+    ApplyObjectHighlight(generator, Settings.GeneratorColor, true)
+    local cp = math.clamp(percent, 0, 100)
+    local finalColor = cp < 50 and Settings.GeneratorColor:Lerp(Color3.fromRGB(180, 180, 0), cp / 50) or Color3.fromRGB(180, 180, 0):Lerp(Color3.fromRGB(0, 150, 0), (cp - 50) / 50)
+    local now = tick()
+    local progressState = GeneratorProgressCache[generator]
+    local speed = 0
+    if progressState then
+        local elapsed = now - progressState.Time
+        if elapsed > 0 then speed = (percent - progressState.Percent) / elapsed end
+    end
+    GeneratorProgressCache[generator] = { Percent = percent, Time = now }
+    local remaining = math.max(0, 100 - percent)
+    local eta = speed > 0 and remaining / speed or nil
+    local etaText = eta and string.format("%ds", math.max(0, math.floor(eta + 0.5))) or "--"
+    local speedText = speed > 0 and string.format("%.1f%%/s", speed) or "--"
+    local percentStr = string.format("%.0f%% | %s | %s", percent, speedText, etaText)
+    if not billboard then
+        billboard = CreateBillboardTag(percentStr, finalColor, UDim2.new(0, 180, 0, 24), 10)
+        billboard.Name, billboard.StudsOffset = "GenSKV_Tag", Vector3.new(0, 2, 0)
+        billboard.Adornee = generator:FindFirstChild("defaultMaterial", true) or generator
+        billboard.Parent = generator
+        billboard:SetAttribute("LastTextUpdate", now)
+    else
+        local lbl = billboard:FindFirstChild("SKV_Label")
+        local lastTextUpdate = billboard:GetAttribute("LastTextUpdate") or 0
+        if lbl and now - lastTextUpdate >= 0.2 then
+            lbl.Text = percentStr
+            lbl.TextColor3 = finalColor
+            billboard:SetAttribute("LastTextUpdate", now)
+        end
+    end
+    return false
+end
+
+function Esp.RefreshESPMapObjects(Settings)
+    ActiveGenerators = {}
+    ActivePallets = {}
+    ActiveBearTraps = {}
+    ActivePumpkins = {}
+    local Map = workspace:FindFirstChild("Map")
+    if not Map then return end
+    for _, obj in ipairs(Map:GetDescendants()) do
+        if obj.Name == "Generator" then
+            table.insert(ActiveGenerators, obj)
+            updateGeneratorProgress(obj, Settings)
+        elseif obj.Name == "Palletwrong" or obj.Name == "Pallet" then
+            table.insert(ActivePallets, obj)
+            ApplyObjectHighlight(obj, Settings.PalletColor, Settings.EnablePalletsESP)
+        elseif obj.Name == "BearTrap" then
+            table.insert(ActiveBearTraps, obj)
+            ApplyObjectHighlight(obj, Settings.BearTrapColor, Settings.EnableBearTrapsESP)
+        elseif string.sub(obj.Name, 1, 7) == "Pumpkin" then
+            table.insert(ActivePumpkins, obj)
+            ApplyObjectHighlight(obj, Settings.PumpkinColor, Settings.EnablePumpkinsESP)
+        end
+    end
+end
+
+function Esp.UpdateMapESP(Settings)
+    local now = tick()
+    if now - LastFullESPRefresh > 5 then
+        LastFullESPRefresh = now
         Esp.RefreshESPMapObjects(Settings)
     end
-end))
-table.insert(Connections, RunService.RenderStepped:Connect(function()
-    local now = tick()
-    Fov.Update(Settings, FOVCircle, MainFrame)
-    if now - LastUpdateTick < 0.03 then return end
-    LastUpdateTick = now
-    UpdateNextKillerLabel()
-    Esp.UpdateMapESP(Settings)
-    Esp.Update(Settings, function(p)
-        return NameChanger.GetDisplayName(p, Settings)
-    end)
-end))
-Esp.RefreshESPMapObjects(Settings)
--- конец файла (мусор удален)
+    for i = #ActivePallets, 1, -1 do
+        local p = ActivePallets[i]
+        if p and p.Parent then ApplyObjectHighlight(p, Settings.PalletColor, Settings.EnablePalletsESP)
+        else table.remove(ActivePallets, i) end
+    end
+    for i = #ActiveGenerators, 1, -1 do
+        local g = ActiveGenerators[i]
+        if g and g.Parent then
+            if updateGeneratorProgress(g, Settings) then table.remove(ActiveGenerators, i) end
+        else table.remove(ActiveGenerators, i) end
+    end
+    for i = #ActiveBearTraps, 1, -1 do
+        local b = ActiveBearTraps[i]
+        if b and b.Parent then ApplyObjectHighlight(b, Settings.BearTrapColor, Settings.EnableBearTrapsESP)
+        else table.remove(ActiveBearTraps, i) end
+    end
+    for i = #ActivePumpkins, 1, -1 do
+        local p = ActivePumpkins[i]
+        if p and p.Parent then ApplyObjectHighlight(p, Settings.PumpkinColor, Settings.EnablePumpkinsESP)
+        else table.remove(ActivePumpkins, i) end
+    end
+end
+
+function Esp.ClearMapESP()
+    for _, g in ipairs(ActiveGenerators) do
+        if g and g.Parent then
+            local b = g:FindFirstChild("GenSKV_Tag")
+            if b then pcall(function() b:Destroy() end) end
+            ApplyObjectHighlight(g, nil, false)
+        end
+    end
+    for _, p in ipairs(ActivePallets) do
+        if p and p.Parent then ApplyObjectHighlight(p, nil, false) end
+    end
+    for _, b in ipairs(ActiveBearTraps) do
+        if b and b.Parent then ApplyObjectHighlight(b, nil, false) end
+    end
+    for _, p in ipairs(ActivePumpkins) do
+        if p and p.Parent then ApplyObjectHighlight(p, nil, false) end
+    end
+    ActiveGenerators = {}
+    ActivePallets = {}
+    ActiveBearTraps = {}
+    ActivePumpkins = {}
+    GeneratorProgressCache = {}
+end
+
+
+local function createDrawing(objType, properties)
+    local obj = Drawing.new(objType)
+    for k, v in pairs(properties) do obj[k] = v end
+    return obj
+end
+
+local function hideDrawings(d)
+    if d.Tracer then d.Tracer.Visible = false end
+    if d.Name then d.Name.Visible = false end
+    if d.Skeleton then
+        for _, line in pairs(d.Skeleton) do line.Visible = false end
+    end
+end
+
+function Esp.CleanupPlayerCache(player)
+    if DrawingsCache[player] then
+        local dList = DrawingsCache[player]
+        if typeof(dList) == "table" then
+            if dList.Tracer then pcall(function() dList.Tracer:Remove() end) end
+            if dList.Name then pcall(function() dList.Name:Remove() end) end
+            if dList.Skeleton then
+                for _, line in pairs(dList.Skeleton) do pcall(function() line:Remove() end) end
+            end
+        end
+        DrawingsCache[player] = nil
+    end
+
+    if HighlightsCache[player] then
+        pcall(function() HighlightsCache[player]:Destroy() end)
+        HighlightsCache[player] = nil
+    end
+end
+
+function Esp.ClearAll()
+    for _, p in ipairs(Players:GetPlayers()) do
+        Esp.CleanupPlayerCache(p)
+    end
+    DrawingsCache = {}
+    HighlightsCache = {}
+end
+
+local function getPlayerRole(player)
+    if player.Team then
+        local tName = string.lower(player.Team.Name)
+        if string.find(tName, "killer") or string.find(tName, "murderer") or string.find(tName, "monster") or string.find(tName, "hunter") then
+            return "Killer"
+        end
+    end
+    return "Survivor"
+end
+
+local function determineColor(player, Settings)
+    if getPlayerRole(player) == "Killer" then
+        return Settings.KillerColor
+    else
+        return Settings.SurvivorColor
+    end
+end
+
+local function shouldRenderPlayer(player, Settings)
+    if player == LocalPlayer then return false end
+    if not Settings.EnableESP then return false end
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return false end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return false end
+    
+    local localRole = getPlayerRole(LocalPlayer)
+    local targetRole = getPlayerRole(player)
+    if Settings.RoleLogic ~= "All" and localRole == targetRole then
+        return false
+    end
+    return true
+end
+
+local function updateHighlight(player, color, Settings)
+    if not player.Character or not Settings.Chams or not Settings.EnableESP then 
+        if HighlightsCache[player] then HighlightsCache[player]:Destroy(); HighlightsCache[player] = nil end
+        return 
+    end
+    
+    local hl = HighlightsCache[player]
+    if not hl or hl.Parent ~= player.Character then
+        if hl then hl:Destroy() end
+        hl = Instance.new("Highlight")
+        hl.Name = "ESP_Chams_Clean"
+        hl.Adornee = player.Character
+        hl.FillTransparency = 0.4
+        hl.OutlineTransparency = 0
+        hl.Parent = player.Character
+        HighlightsCache[player] = hl
+    end
+    hl.FillColor = color
+    hl.OutlineColor = color
+    hl.Enabled = true
+end
+
+function Esp.Update(Settings, GetDisplayNameFunc)
+    for _, player in ipairs(Players:GetPlayers()) do
+        local shouldRender = shouldRenderPlayer(player, Settings)
+        
+        if not shouldRender then
+            if DrawingsCache[player] then hideDrawings(DrawingsCache[player]) end
+            if HighlightsCache[player] then HighlightsCache[player]:Destroy(); HighlightsCache[player] = nil end
+            continue
+        end
+        
+        local char = player.Character
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+        
+        if not hrp or not head then
+            if DrawingsCache[player] then hideDrawings(DrawingsCache[player]) end
+            continue
+        end
+        
+        local color = determineColor(player, Settings)
+        updateHighlight(player, color, Settings)
+        
+        if not DrawingsCache[player] then
+            DrawingsCache[player] = {
+                Tracer = createDrawing("Line", {Thickness = 1}),
+                Name = createDrawing("Text", {Size = 12, Center = true, Outline = true, Font = 2}),
+                Skeleton = {}
+            }
+        end
+        
+        local d = DrawingsCache[player]
+        local vector, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+        local headVector = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+        local legVector = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+        
+        if onScreen and headVector.Z > 0 then
+            if Settings.Tracers then
+                d.Tracer.Visible = true
+                d.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                d.Tracer.To = Vector2.new(vector.X, legVector.Y)
+                d.Tracer.Color = color
+            else
+                d.Tracer.Visible = false
+            end
+            
+            if Settings.ShowName or Settings.ShowDistance then
+                d.Name.Visible = true
+                local textStr = GetDisplayNameFunc(player)
+                if Settings.ShowDistance and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    local dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude)
+                    textStr = textStr .. " [" .. dist .. "m]"
+                end
+                d.Name.Text = textStr
+                d.Name.Position = Vector2.new(vector.X, headVector.Y - 22)
+                d.Name.Color = color
+            else
+                d.Name.Visible = false
+            end
+            
+            if Settings.Skeleton then
+                local bonePairs = {}
+                if char:FindFirstChild("UpperTorso") then
+                    bonePairs = {
+                        {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+                        {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
+                        {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightUpperArm", "RightHand"},
+                        {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
+                        {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
+                    }
+                elseif char:FindFirstChild("Torso") then
+                    bonePairs = {
+                        {"Head", "Torso"},
+                        {"Torso", "Left Arm"}, {"Left Arm", "LeftHand"},
+                        {"Torso", "Right Arm"}, {"Right Arm", "RightHand"},
+                        {"Torso", "Left Leg"}, {"Left Leg", "LeftFoot"},
+                        {"Torso", "Right Leg"}, {"Right Leg", "RightFoot"}
+                    }
+                end
+                
+                for i, bone in ipairs(bonePairs) do
+                    local p1 = char:FindFirstChild(bone[1])
+                    local p2 = char:FindFirstChild(bone[2])
+                    
+                    if p1 and p2 then
+                        if not d.Skeleton[i] then d.Skeleton[i] = createDrawing("Line", {Thickness = 1}) end
+                        local line = d.Skeleton[i]
+                        local v1, vis1 = Camera:WorldToViewportPoint(p1.Position)
+                        local v2, vis2 = Camera:WorldToViewportPoint(p2.Position)
+                        
+                        if vis1 and vis2 and v1.Z > 0 and v2.Z > 0 then
+                            line.Visible = true
+                            line.From = Vector2.new(v1.X, v1.Y)
+                            line.To = Vector2.new(v2.X, v2.Y)
+                            line.Color = color
+                        else
+                            line.Visible = false
+                        end
+                    else
+                        if d.Skeleton[i] then d.Skeleton[i].Visible = false end
+                    end
+                end
+            else
+                if d.Skeleton then
+                    for _, line in pairs(d.Skeleton) do line.Visible = false end
+                end
+            end
+        else
+            hideDrawings(d)
+        end
+    end
+end
+
+return Esp
