@@ -27,23 +27,30 @@ local function GetMapValue(obj, name)
 end
 
 local function ApplyObjectHighlight(object, color, enabled)
-    if not enabled then
+    if not object or not object.Parent then return end
+    
+    local defaultColor = Color3.fromRGB(255, 255, 255)
+    if typeof(color) ~= "Color3" then color = defaultColor end
+
+    pcall(function()
         local h = object:FindFirstChild("SKV_ObjH")
-        if h then h:Destroy() end
-        return
-    end
-    local h = object:FindFirstChild("SKV_ObjH")
-    if not h then
-        h = Instance.new("Highlight")
-        h.Name = "SKV_ObjH"
-        h.Adornee = object
-        h.FillTransparency = 0.7
-        h.OutlineTransparency = 0.2
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        h.Parent = object
-    end
-    h.FillColor = color
-    h.OutlineColor = color
+        if not enabled then
+            if h then h:Destroy() end
+            return
+        end
+        if not h then
+            h = Instance.new("Highlight")
+            h.Name = "SKV_ObjH"
+            h.Adornee = object
+            h.FillTransparency = 0.7
+            h.OutlineTransparency = 0.2
+            h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            h.Parent = object
+        end
+        h.FillColor = color
+        h.OutlineColor = color
+        h.Enabled = true
+    end)
 end
 
 local function CreateBillboardTag(text, color, size, textSize)
@@ -120,40 +127,134 @@ local function updateGeneratorProgress(generator, Settings)
     end
     return false
 end
+local function isGenerator(obj)
+    if not obj or not obj.Parent then return false end
+    return obj.Name == "Generator" or obj:FindFirstChild("RepairProgress") ~= nil or obj:GetAttribute("RepairProgress") ~= nil
+end
+
+local function isPallet(obj)
+    if not obj or not obj.Parent then return false end
+    return obj.Name == "Pallet" or obj.Name == "Palletwrong"
+end
+
+local function isBearTrap(obj)
+    if not obj or not obj.Parent then return false end
+    local name = string.lower(obj.Name)
+    if string.find(name, "trapdoor") or string.find(name, "hatch") then return false end
+    if string.find(name, "beartrap") or string.find(name, "bear trap") or string.find(name, "bear_trap") then return true end
+    if name == "trap" or name == "placedtrap" or name == "killertrap" or name == "snaptrap" then return true end
+    return false
+end
+
+local function isPumpkin(obj)
+    if not obj or not obj.Parent then return false end
+    local name = string.lower(obj.Name)
+    return string.find(name, "pumpkin") ~= nil or string.find(name, "тыква") ~= nil
+end
+
+local function getTopModel(obj, checkFunc)
+    local current = obj
+    local top = obj
+    while current and current.Parent and current.Parent ~= workspace do
+        if checkFunc(current.Parent) then
+            top = current.Parent
+        end
+        current = current.Parent
+    end
+    return top
+end
+
 
 function Esp.RefreshESPMapObjects(Settings)
     ActiveGenerators = {}
     ActivePallets = {}
     ActiveBearTraps = {}
     ActivePumpkins = {}
-    local Map = workspace:FindFirstChild("Map")
-    if not Map then return end
-    for _, obj in ipairs(Map:GetDescendants()) do
-        if obj.Name == "Generator" then
-            table.insert(ActiveGenerators, obj)
-            updateGeneratorProgress(obj, Settings)
-        elseif obj.Name == "Palletwrong" or obj.Name == "Pallet" then
-            table.insert(ActivePallets, obj)
-            ApplyObjectHighlight(obj, Settings.PalletColor, Settings.EnablePalletsESP)
-        elseif obj.Name == "BearTrap" then
-            table.insert(ActiveBearTraps, obj)
-            ApplyObjectHighlight(obj, Settings.BearTrapColor, Settings.EnableBearTrapsESP)
-        elseif string.sub(obj.Name, 1, 7) == "Pumpkin" then
-            table.insert(ActivePumpkins, obj)
-            ApplyObjectHighlight(obj, Settings.PumpkinColor, Settings.EnablePumpkinsESP)
+
+    local addedG = {}
+    local addedP = {}
+    local addedB = {}
+    local addedK = {}
+
+    local bearTrapColor = Settings.BearTrapColor or Color3.fromRGB(255, 170, 0)
+    local pumpkinColor = Settings.PumpkinColor or Color3.fromRGB(255, 130, 0)
+    local palletColor = Settings.PalletColor or Color3.fromRGB(74, 255, 181)
+
+    local function checkAndAdd(obj)
+        if not obj or not obj.Parent then return end
+        if isGenerator(obj) then
+            local top = getTopModel(obj, isGenerator)
+            if not addedG[top] then
+                addedG[top] = true
+                table.insert(ActiveGenerators, top)
+                updateGeneratorProgress(top, Settings)
+            end
+        elseif isPallet(obj) then
+            local top = getTopModel(obj, isPallet)
+            if not addedP[top] then
+                addedP[top] = true
+                table.insert(ActivePallets, top)
+                ApplyObjectHighlight(top, palletColor, Settings.EnablePalletsESP)
+            end
+        elseif isBearTrap(obj) then
+            local top = getTopModel(obj, isBearTrap)
+            if not addedB[top] then
+                addedB[top] = true
+                table.insert(ActiveBearTraps, top)
+                ApplyObjectHighlight(top, bearTrapColor, Settings.EnableBearTrapsESP)
+            end
+        elseif isPumpkin(obj) then
+            local top = getTopModel(obj, isPumpkin)
+            if not addedK[top] then
+                addedK[top] = true
+                table.insert(ActivePumpkins, top)
+                ApplyObjectHighlight(top, pumpkinColor, Settings.EnablePumpkinsESP)
+            end
         end
     end
+
+    local function scanContainer(container)
+        if not container then return end
+        pcall(function()
+            for _, obj in ipairs(container:GetDescendants()) do
+                checkAndAdd(obj)
+            end
+        end)
+    end
+
+    local Map = workspace:FindFirstChild("Map")
+    if Map then
+        scanContainer(Map)
+    end
+
+    pcall(function()
+        for _, child in ipairs(workspace:GetChildren()) do
+            if child ~= Map and child.Name ~= "Terrain" and child.Name ~= "Camera" then
+                checkAndAdd(child)
+                if child:IsA("Folder") or child:IsA("Model") then
+                    local cName = string.lower(child.Name)
+                    if string.find(cName, "trap") or string.find(cName, "item") or string.find(cName, "object") or string.find(cName, "map") or string.find(cName, "pumpkin") or string.find(cName, "debris") then
+                        scanContainer(child)
+                    end
+                end
+            end
+        end
+    end)
 end
 
 function Esp.UpdateMapESP(Settings)
     local now = tick()
-    if now - LastFullESPRefresh > 5 then
+    if now - LastFullESPRefresh > 2 then
         LastFullESPRefresh = now
         Esp.RefreshESPMapObjects(Settings)
     end
+    local bearTrapColor = Settings.BearTrapColor or Color3.fromRGB(255, 170, 0)
+    local pumpkinColor = Settings.PumpkinColor or Color3.fromRGB(255, 130, 0)
+    local palletColor = Settings.PalletColor or Color3.fromRGB(74, 255, 181)
+
     for i = #ActivePallets, 1, -1 do
         local p = ActivePallets[i]
-        if p and p.Parent then ApplyObjectHighlight(p, Settings.PalletColor, Settings.EnablePalletsESP)
+        if p and p.Parent then ApplyObjectHighlight(p, palletColor, Settings.EnablePalletsESP)
         else table.remove(ActivePallets, i) end
     end
     for i = #ActiveGenerators, 1, -1 do
@@ -164,12 +265,12 @@ function Esp.UpdateMapESP(Settings)
     end
     for i = #ActiveBearTraps, 1, -1 do
         local b = ActiveBearTraps[i]
-        if b and b.Parent then ApplyObjectHighlight(b, Settings.BearTrapColor, Settings.EnableBearTrapsESP)
+        if b and b.Parent then ApplyObjectHighlight(b, bearTrapColor, Settings.EnableBearTrapsESP)
         else table.remove(ActiveBearTraps, i) end
     end
     for i = #ActivePumpkins, 1, -1 do
         local p = ActivePumpkins[i]
-        if p and p.Parent then ApplyObjectHighlight(p, Settings.PumpkinColor, Settings.EnablePumpkinsESP)
+        if p and p.Parent then ApplyObjectHighlight(p, pumpkinColor, Settings.EnablePumpkinsESP)
         else table.remove(ActivePumpkins, i) end
     end
 end
