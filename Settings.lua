@@ -9,8 +9,8 @@ local Settings = {
     ShowDistance = false,
     EnableGeneratorsESP = true,
     EnablePalletsESP = true,
-    EnableBearTrapsESP = true,
-    EnablePumpkinsESP = true,
+    EnableBearTrapsESP = false,
+    EnablePumpkinsESP = false,
     RoleLogic = "All",
     KillerColor = Color3.fromRGB(255, 60, 60),
     SurvivorColor = Color3.fromRGB(60, 160, 255),
@@ -41,7 +41,7 @@ local Settings = {
     RemoveFog = false,
     -- Moonwalk / Auto tools (для нового GUI)
     MoonwalkEnabled = false,
-    AutoSkillCheck = false,
+    AutoSkillCheck = true,
     AutoDagger = false,
     ShowNextKiller = true,
 }
